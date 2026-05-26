@@ -1,0 +1,6 @@
+{
+  "name": "Uster Yarn Grader",
+  "description": "Grading carded and combed ring yarn using Uster Statistics 2023. Safely scan reports with AI or perform manual measurements.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
