@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef } from "react";
+import Tesseract from "tesseract.js";
 import {
   Sparkles,
   Upload,
@@ -14,7 +15,9 @@ import {
   TrendingDown,
   Info,
   ChevronRight,
-  ChevronDown
+  ChevronDown,
+  Camera,
+  Image as ImageIcon
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -316,71 +319,190 @@ export default function App() {
     processScanFile(file);
   };
 
+  // Local regex parser for offline / backup fallback
+  const parseTextLocally = (text: string) => {
+    const result: { yarnType: string; ne: number; parameters: Array<{ key: string; measured: number }> } = {
+      yarnType: "carded",
+      ne: 30,
+      parameters: []
+    };
+
+    const lowerText = text.toLowerCase();
+
+    if (lowerText.includes("combed") || lowerText.includes("compact") || lowerText.includes("combd")) {
+      result.yarnType = "combed";
+    } else if (lowerText.includes("carded") || lowerText.includes("cardd")) {
+      result.yarnType = "carded";
+    }
+
+    const countRegexes = [
+      /(?:ne|count|english\s*count|english|cnt)[:\s=]*(\d+(?:\.\d+)?)/i,
+      /(\d+(?:\.\d+)?)\s*(?:s|ne|english\s*count)/i,
+      /(?:yarn\s*count)[:\s=]*(\d+(?:\.\d+)?)/i
+    ];
+
+    for (const regex of countRegexes) {
+      const match = text.match(regex);
+      if (match && match[1]) {
+        const parsedNe = parseFloat(match[1]);
+        if (parsedNe >= 4 && parsedNe <= 160) {
+          result.ne = parsedNe;
+          break;
+        }
+      }
+    }
+
+    const keyConfigs = [
+      { key: "CVm", regexes: [/cvm\s*(?:[%\[\s]*)?[:\s=]*(\d+(?:\.\d+)?)/i, /cv\s*[%]?[:\s=]*(\d+(?:\.\d+)?)/i] },
+      { key: "CVm_1m", regexes: [/cvm\s*(?:1m|1\s*meter)\s*(?:[%\[\s]*)?[:\s=]*(\d+(?:\.\d+)?)/i, /cv1m\s*[:\s=]*(\d+(?:\.\d+)?)/i] },
+      { key: "CVm_3m", regexes: [/cvm\s*(?:3m|3\s*meter)\s*(?:[%\[\s]*)?[:\s=]*(\d+(?:\.\d+)?)/i, /cv3m\s*[:\s=]*(\d+(?:\.\d+)?)/i] },
+      { key: "CVb_CVm", regexes: [/cvb\s*(?:cvm)?\s*[:\s=]*(\d+(?:\.\d+)?)/i, /cvb\s*[:\s=]*(\d+(?:\.\d+)?)/i] },
+      { key: "Thin_40", regexes: [/thin(?:places)?\s*-40%?\s*[:\s=]*(\d+)/i, /-40%\s*[:\s=]*(\d+)/i] },
+      { key: "Thin_50", regexes: [/thin(?:places)?\s*-50%?\s*[:\s=]*(\d+)/i, /-50%\s*[:\s=]*(\d+)/i] },
+      { key: "Thick_35", regexes: [/thick(?:places)?\s*\+35%?\s*[:\s=]*(\d+)/i, /\+35%\s*[:\s=]*(\d+)/i] },
+      { key: "Thick_50", regexes: [/thick(?:places)?\s*\+50%?\s*[:\s=]*(\d+)/i, /\+50%\s*[:\s=]*(\d+)/i] },
+      { key: "Neps_140", regexes: [/neps?\s*\+140%?\s*[:\s=]*(\d+)/i, /\+140%\s*[:\s=]*(\d+)/i] },
+      { key: "Neps_200", regexes: [/neps?\s*\+200%?\s*[:\s=]*(\d+)/i, /\+200%\s*[:\s=]*(\d+)/i] },
+      { key: "H", regexes: [/\bh\b[:\s=]*(\d+(?:\.\d+)?)/i, /hairiness\s*[:\s=]*(\d+(?:\.\d+)?)/i] },
+      { key: "sH", regexes: [/\bsh\b[:\s=]*(\d+(?:\.\d+)?)/i, /hairiness\s*std\s*dev\s*[:\s=]*(\d+(?:\.\d+)?)/i] },
+      { key: "S3u", regexes: [/s3u?[:\s=]*(\d+(?:\.\d+)?)/i, /s3\s*>\s*3\s*mm[:\s=]*(\d+(?:\.\d+)?)/i] },
+      { key: "Dst_Cnt", regexes: [/dst\s*cnt[:\s=]*(\d+)/i, /dust\s*(?:count)?[:\s=]*(\d+)/i, /dust\/km[:\s=]*(\d+)/i] },
+      { key: "Tr_Cnt", regexes: [/tr\s*cnt[:\s=]*(\d+)/i, /trash\s*(?:count)?[:\s=]*(\d+)/i, /trash\/km[:\s=]*(\d+)/i] },
+    ];
+
+    for (const config of keyConfigs) {
+      for (const rx of config.regexes) {
+        const match = text.match(rx);
+        if (match && match[1]) {
+          const value = parseFloat(match[1]);
+          if (!isNaN(value)) {
+            result.parameters.push({
+              key: config.key,
+              measured: value
+            });
+            break;
+          }
+        }
+      }
+    }
+
+    return result;
+  };
+
   const processScanFile = async (file: File) => {
     setIsScanning(true);
     setScanError(null);
-    setScanLogs([`Initializing optical analysis of "${file.name}"...`]);
+    setScanLogs([`Initializing optical OCR analysis of "${file.name}"...`]);
 
-    const reader = new FileReader();
-    reader.onload = async () => {
+    try {
+      let extractedText = "";
+
+      // Check if it's an image or text
+      if (file.type.startsWith("image/")) {
+        setScanLogs(prev => [...prev, "Spawning client-side Tesseract.js worker..."]);
+        
+        // Use Tesseract high-level recognize block
+        const tesseractResult = await Tesseract.recognize(
+          file,
+          "eng",
+          {
+            logger: (m) => {
+              if (m.status === "recognizing text") {
+                const percent = Math.round(m.progress * 100);
+                setScanLogs(prev => {
+                  const last = prev[prev.length - 1];
+                  if (last && last.startsWith("Recognizing text:")) {
+                    return [...prev.slice(0, -1), `Recognizing text: ${percent}%`];
+                  }
+                  return [...prev, `Recognizing text: ${percent}%`];
+                });
+              } else {
+                setScanLogs(prev => [...prev, `${m.status}...`]);
+              }
+            }
+          }
+        );
+
+        extractedText = tesseractResult.data.text;
+        setScanLogs(prev => [
+          ...prev, 
+          `Client-side Optical Scan Completed! Extracted ${extractedText.length} characters.`
+        ]);
+      } else {
+        // Fallback for reading text files
+        setScanLogs(prev => [...prev, "Loading plain text file..."]);
+        extractedText = await new Promise<string>((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = () => resolve(r.result as string);
+          r.onerror = () => reject(new Error("Failed to read text file."));
+          r.readAsText(file);
+        });
+      }
+
+      if (!extractedText || extractedText.trim().length === 0) {
+        throw new Error("OCR did not capture any legible character streams. Please ensure the snapshot contains valid report texts.");
+      }
+
+      // Try calling full-stack backend endpoint (/api/parse-text) with extracted text
+      setScanLogs(prev => [...prev, "Connecting to server NLP parser with extracted text stream..."]);
+      let data;
       try {
-        const base64Str = (reader.result as string).split(",")[1];
-        setScanLogs(prev => [...prev, `Converting file stream (MimeType: ${file.type})...`]);
-
-        // Interface with Gemini API on backend
-        setScanLogs(prev => [...prev, "Sending report payload to Gemini server service..."]);
-        const res = await fetch("/api/scan-report", {
+        const res = await fetch("/api/parse-text", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            fileData: base64Str,
-            mimeType: file.type
-          })
+          body: JSON.stringify({ text: extractedText })
         });
 
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || `HTTP ${res.status}`);
-        }
-
-        const data = await res.json();
-        setScanLogs(prev => [...prev, "Received extracted data. Matching parameters..."]);
-
-        if (data.yarnType) {
-          setYarnType(data.yarnType === "combed" ? "combed" : "carded");
-        }
-        if (data.ne) {
-          setNe(Number(data.ne));
-        }
-
-        if (data.parameters && Array.isArray(data.parameters)) {
-          const nextMeas: Record<string, string> = {};
-          data.parameters.forEach((p: { key: string; measured: number }) => {
-            nextMeas[p.key] = p.measured.toString();
-          });
-          setMeasurements(nextMeas);
-          setScanLogs(prev => [
-            ...prev,
-            `Successfully scanned and configured Ne ${data.ne} ${data.yarnType} lots with ${data.parameters.length} measurements!`
-          ]);
+        if (res.ok) {
+          data = await res.json();
+          setScanLogs(prev => [...prev, "Server Gemini model parsed report variables successfully!"]);
         } else {
-          throw new Error("Invalid output format returned from reading service.");
+          const errBody = await res.json().catch(() => ({}));
+          throw new Error(errBody.error || `HTTP ${res.status}`);
         }
-      } catch (err: any) {
-        console.error(err);
-        setScanError(err.message || "Unable to extract report. Please re-check key variables.");
-        setScanLogs(prev => [...prev, "Scanning error flagged."]);
-      } finally {
-        setIsScanning(false);
+      } catch (backendErr: any) {
+        console.warn("Backend parsing failed, falling back to client-side regex parser:", backendErr);
+        setScanLogs(prev => [
+          ...prev,
+          "Notice: Server-side Gemini model is offline/unreachable. Initiating automated client-side local parser..."
+        ]);
+        
+        const localData = parseTextLocally(extractedText);
+        if (localData.parameters.length === 0) {
+          throw new Error("Offline local parser was unable to identify standard Uster fields automatically. Please upload a clear photo or enter data manually.");
+        }
+        data = localData;
       }
-    };
 
-    reader.onerror = () => {
-      setScanError("File reading triggered generic failure hook.");
+      // Set state based on parsed data (from backend Gemini, or client fallback)
+      if (data.yarnType) {
+        setYarnType(data.yarnType === "combed" ? "combed" : "carded");
+      }
+      if (data.ne) {
+        setNe(Number(data.ne));
+      }
+
+      if (data.parameters && Array.isArray(data.parameters)) {
+        const nextMeas: Record<string, string> = {};
+        data.parameters.forEach((p: { key: string; measured: number }) => {
+          nextMeas[p.key] = p.measured.toString();
+        });
+        setMeasurements(nextMeas);
+        setScanLogs(prev => [
+          ...prev,
+          `Successfully processed Ne ${data.ne} ${data.yarnType} report with ${data.parameters.length} matching parameters!`
+        ]);
+      } else {
+        throw new Error("Extracted report parameters could not be read.");
+      }
+
+    } catch (err: any) {
+      console.error("Scan error details:", err);
+      setScanError(err.message || "Failed to scan report. Please ensure high clarity and check parameters.");
+      setScanLogs(prev => [...prev, "Scanning process interrupted."]);
+    } finally {
       setIsScanning(false);
-    };
-
-    reader.readAsDataURL(file);
+    }
   };
 
   // Reset measurements
@@ -565,38 +687,81 @@ export default function App() {
                         </div>
                       )}
 
-                      {/* Drop area with high fidelity decoration inspired by Design HTML */}
-                      <div className="relative border-2 border-dashed border-slate-200/80 rounded-2xl bg-slate-50/50 hover:bg-slate-50 transition-all p-8 text-center flex flex-col items-center justify-center cursor-pointer group overflow-hidden min-h-[220px]">
-                        <input
-                          type="file"
-                          accept="image/*,application/pdf"
-                          onChange={handleUploadedFile}
-                          disabled={isScanning}
-                          className="absolute inset-0 opacity-0 cursor-pointer z-20"
-                        />
-                        
-                        {/* Mockup radial dot context decoration */}
-                        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:12px_12px] pointer-events-none"></div>
-                        
-                        {/* Scanning Line Sweep Animation */}
-                        {isScanning ? (
-                          <div className="absolute top-0 left-0 w-full h-[2px] bg-indigo-500 shadow-[0_0_8px_rgba(79,70,229,0.8)] animate-[bounce_2.5s_infinite] pointer-events-none z-10" />
-                        ) : (
-                          <div className="absolute top-1/3 left-0 w-full h-[1px] bg-slate-250 bg-slate-200 pointer-events-none opacity-30" />
-                        )}
+                      {/* Dual-method capture container */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* Option 1: File/Image Upload */}
+                        <div className="relative border-2 border-dashed border-slate-200/80 rounded-2xl bg-slate-50/50 hover:bg-slate-50 transition-all p-6 text-center flex flex-col items-center justify-center cursor-pointer group overflow-hidden min-h-[190px]">
+                          <input
+                            type="file"
+                            accept="image/*,application/pdf"
+                            onChange={handleUploadedFile}
+                            disabled={isScanning}
+                            className="absolute inset-0 opacity-0 cursor-pointer z-20"
+                            id="file-upload-input"
+                          />
+                          
+                          <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:12px_12px] pointer-events-none"></div>
+                          
+                          {isScanning && (
+                            <div className="absolute top-0 left-0 w-full h-[2px] bg-indigo-500 shadow-[0_0_8px_rgba(79,70,229,0.8)] animate-[bounce_2.5s_infinite] pointer-events-none z-10" />
+                          )}
 
-                        <div className="bg-white p-3 rounded-xl shadow-xs border border-slate-100 group-hover:scale-105 transition-transform mb-3 z-10">
-                          <Upload className="h-6 w-6 text-indigo-600" />
+                          <div className="bg-white p-2.5 rounded-xl shadow-xs border border-slate-100 group-hover:scale-105 transition-transform mb-2.5 z-10">
+                            <Upload className="h-5.5 w-5.5 text-indigo-600" />
+                          </div>
+                          <p className="text-xs font-bold text-slate-800 z-10">
+                            Upload File / Report
+                          </p>
+                          <p className="text-[10px] text-slate-400 mt-1 leading-relaxed z-10 max-w-[170px]">
+                            Upload a saved PDF snippet, report photo, or scanner image
+                          </p>
+                          <p className="text-[8px] font-extrabold text-indigo-600 uppercase tracking-wider mt-2.5 bg-white px-2 py-0.5 rounded border border-slate-200/55 font-mono z-10 shadow-3xs">
+                            PDF, PNG, JPG to 20MB
+                          </p>
                         </div>
-                        <p className="text-sm font-bold text-slate-800 z-10">
-                          Upload your lot report sheet
-                        </p>
-                        <p className="text-xs text-slate-400 mt-1 z-10">
-                          Drop photo, scan PDF lot printout or image
-                        </p>
-                        <p className="text-[9px] font-bold text-indigo-600 uppercase tracking-widest mt-3 bg-white px-2 py-0.5 rounded border border-slate-200/50 font-mono z-10 shadow-3xs">
-                          PNG, JPG, PDF up to 20MB
-                        </p>
+
+                        {/* Option 2: Live Camera Scan (Capture Environment) */}
+                        <div className="relative border-2 border-dashed border-indigo-200/80 rounded-2xl bg-indigo-50/20 hover:bg-indigo-50/45 transition-all p-6 text-center flex flex-col items-center justify-center cursor-pointer group overflow-hidden min-h-[190px]">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            onChange={handleUploadedFile}
+                            disabled={isScanning}
+                            className="absolute inset-0 opacity-0 cursor-pointer z-20"
+                            id="camera-upload-input"
+                          />
+                          
+                          <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#6366f1_1px,transparent_1px)] [background-size:12px_12px] pointer-events-none"></div>
+                          
+                          {isScanning && (
+                            <div className="absolute top-0 left-0 w-full h-[2px] bg-indigo-500 shadow-[0_0_8px_rgba(79,70,229,0.8)] animate-[bounce_2.5s_infinite] pointer-events-none z-10" />
+                          )}
+
+                          <div className="bg-white p-2.5 rounded-xl shadow-xs border border-indigo-100 group-hover:scale-105 transition-transform mb-2.5 z-10">
+                            <Camera className="h-5.5 w-5.5 text-indigo-650" />
+                          </div>
+                          <p className="text-xs font-bold text-slate-950 z-10 flex items-center gap-1 justify-center">
+                            Use Mobile Camera
+                          </p>
+                          <p className="text-[10px] text-slate-500 mt-1 leading-relaxed z-10 max-w-[170px]">
+                            Trigger front or back camera directly to snap paper reports
+                          </p>
+                          <p className="text-[8px] font-extrabold text-indigo-655 text-indigo-600 uppercase tracking-wider mt-2.5 bg-white px-2 py-0.5 rounded border border-indigo-120 border-indigo-105 font-mono z-10 shadow-3xs">
+                            Camera Capture Mode
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Google Lens Helper Guide banner */}
+                      <div className="mt-1 bg-gradient-to-r from-indigo-50/45 to-slate-50/40 p-3 rounded-xl border border-indigo-100/40 text-left flex items-start gap-2.5">
+                        <span className="text-base mt-0.5">💡</span>
+                        <div className="space-y-0.5">
+                          <p className="text-[11px] font-bold text-slate-800">Google Lens & Camera Integration Guide</p>
+                          <p className="text-[10px] text-slate-500 leading-relaxed">
+                            For maximum precision: tap <strong className="text-indigo-600">Use Mobile Camera</strong> on smartphones to activate your high-clarity device lens. You can also scan your report directly using <strong className="text-indigo-600">Google Lens</strong> to copy the text and upload or paste it here directly!
+                          </p>
+                        </div>
                       </div>
 
                       {/* AI Lot Presets */}
