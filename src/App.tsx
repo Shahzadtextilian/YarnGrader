@@ -1,32 +1,29 @@
-import React, { useState, useMemo, useRef } from "react";
-import Tesseract from "tesseract.js";
+import React, { useState, useMemo } from "react";
 import {
-  Sparkles,
-  Upload,
   Sliders,
   CheckCircle,
   AlertTriangle,
   BookOpen,
-  Settings,
-  HelpCircle,
   X,
   RotateCcw,
   FileText,
   TrendingDown,
   Info,
   ChevronRight,
-  ChevronDown,
-  Camera,
-  Image as ImageIcon
+  ChevronDown
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import {
-  cardedStatistics,
-  combedStatistics,
+  cardedRingConesStatistics,
+  combedRingConesStatistics,
+  combedConesStatistics,
   gradeYarnParameter,
   getPercentilesForCount,
   interpolateValue,
-  UsterParameter
+  UsterParameter,
+  CARDED_RING_CONES_COUNTS,
+  COMBED_RING_CONES_COUNTS,
+  COMBED_CONES_COUNTS
 } from "./data/uster_statistics";
 
 // Define strict details of the parameters
@@ -126,70 +123,74 @@ const PARAM_INFO: Record<
   }
 };
 
-// Preset samples to test AI Scanners beautifully out-of-the-box
+// Preset samples to test Lot Entry beautifully out-of-the-box
 const SAMPLE_REPORTS = [
   {
-    name: "Standard Ring Lot-30s Carded Primary",
-    yarnType: "carded",
-    ne: 30,
-    parameters: {
-      CVm: 14.5,
-      Thin_40: 180,
-      Thin_50: 9,
-      Thick_35: 750,
-      Thick_50: 110,
-      Neps_140: 1100,
-      Neps_200: 220,
-      H: 5.8,
-      sH: 1.4,
-      S3u: 5500,
-      Dst_Cnt: 320,
-      Tr_Cnt: 2
-    }
-  },
-  {
-    name: "Premium Compact Lot-50s Combed Elite",
-    yarnType: "combed",
-    ne: 50,
-    parameters: {
-      CVm: 11.8,
-      Thin_40: 50,
-      Thin_50: 2,
-      Thick_35: 160,
-      Thick_50: 8,
-      Neps_140: 110,
-      Neps_200: 21,
-      H: 2.7,
-      sH: 0.75,
-      S3u: 2200,
-      Dst_Cnt: 10
-    }
-  },
-  {
-    name: "Variation Relic Lot-24s Carded Defective",
-    yarnType: "carded",
+    name: "100% Cotton Carded Ring Yarn Lot - Ne 24",
+    dbCategory: "carded_ring_cones" as const,
     ne: 24,
     parameters: {
-      CVm: 17.2,
-      Thin_40: 680,
-      Thin_50: 45,
-      Thick_35: 2300,
-      Thick_50: 520,
-      Neps_140: 3100,
-      Neps_200: 680,
-      H: 8.1,
-      sH: 2.0,
-      S3u: 9500,
-      Dst_Cnt: 1550,
-      Tr_Cnt: 19
+      CVm: 14.2,
+      Thin_40: 120,
+      Thin_50: 8,
+      Thick_35: 910,
+      Thick_50: 130,
+      Neps_140: 1100,
+      Neps_200: 240,
+      H: 6.2,
+      sH: 1.5,
+      S3u: 5800,
+      Dst_Cnt: 480,
+      Tr_Cnt: 3
+    }
+  },
+  {
+    name: "100% Cotton Combed Ring Yarn Lot - Ne 40",
+    dbCategory: "combed_ring_cones" as const,
+    ne: 40,
+    parameters: {
+      CVm: 11.2,
+      Thin_40: 38,
+      Thin_50: 1,
+      Thick_35: 180,
+      Thick_50: 12,
+      Neps_140: 140,
+      Neps_200: 32,
+      H: 3.6,
+      sH: 0.85,
+      S3u: 2800,
+      Dst_Cnt: 18,
+      Tr_Cnt: 0
+    }
+  },
+  {
+    name: "100% Cotton Combed Compact Yarn Lot - Ne 30",
+    dbCategory: "combed_cones" as const,
+    ne: 30,
+    parameters: {
+      CVm: 9.9,
+      Thin_40: 12,
+      Thin_50: 0,
+      Thick_35: 75,
+      Thick_50: 9,
+      Neps_140: 100,
+      Neps_200: 25,
+      H: 4.1,
+      sH: 0.9,
+      S3u: 3600,
+      Dst_Cnt: 46,
+      Tr_Cnt: 0
     }
   }
 ];
 
 export default function App() {
   // Input Settings
-  const [yarnType, setYarnType] = useState<"carded" | "combed">("carded");
+  const [dbCategory, setDbCategory] = useState<"carded_ring_cones" | "combed_ring_cones" | "combed_cones">("carded_ring_cones");
   const [ne, setNe] = useState<number>(30);
+  const [isCustomNe, setIsCustomNe] = useState<boolean>(false);
+  const [customNeVal, setCustomNeVal] = useState<string>("30");
+
   const [measurements, setMeasurements] = useState<Record<string, string>>({
     CVm: "14.5",
     Thin_50: "9",
@@ -199,25 +200,103 @@ export default function App() {
   });
 
   // UI Tabs & state
-  const [activeInputTab, setActiveInputTab] = useState<"manual" | "ai">("manual");
   const [learningTab, setLearningTab] = useState<boolean>(false);
   const [activeCategory, setActiveCategory] = useState<string>("All");
 
-  // AI Scanner state variables
-  const [isScanning, setIsScanning] = useState<boolean>(false);
-  const [scanError, setScanError] = useState<string | null>(null);
-  const [scanLogs, setScanLogs] = useState<string[]>([]);
-  const [showFileHelp, setShowFileHelp] = useState<boolean>(false);
-
-  // Reference learning tab select states
-  const [studyYarnType, setStudyYarnType] = useState<"carded" | "combed">("carded");
+  // Reference learning directory select states
+  const [studyDbCategory, setStudyDbCategory] = useState<"carded_ring_cones" | "combed_ring_cones" | "combed_cones">("carded_ring_cones");
   const [studyNe, setStudyNe] = useState<number>(30);
+  const [isCustomStudyNe, setIsCustomStudyNe] = useState<boolean>(false);
+  const [customStudyNeVal, setCustomStudyNeVal] = useState<string>("30");
   const [infoModalKey, setInfoModalKey] = useState<string | null>(null);
 
-  // Fetch reference parameter statistics based on type
+  // Derive simple yarnType "carded" | "combed" for backward layout details
+  const yarnType = dbCategory === "carded_ring_cones" ? "carded" : "combed";
+
+  // Fetch reference parameter statistics based on selected category
   const activeStats = useMemo(() => {
-    return yarnType === "carded" ? cardedStatistics : combedStatistics;
-  }, [yarnType]);
+    switch (dbCategory) {
+      case "carded_ring_cones":
+        return cardedRingConesStatistics;
+      case "combed_ring_cones":
+        return combedRingConesStatistics;
+      case "combed_cones":
+        return combedConesStatistics;
+      default:
+        return cardedRingConesStatistics;
+    }
+  }, [dbCategory]);
+
+  // Derived available counts list for selectors
+  const availableCounts = useMemo(() => {
+    switch (dbCategory) {
+      case "carded_ring_cones":
+        return CARDED_RING_CONES_COUNTS;
+      case "combed_ring_cones":
+        return COMBED_RING_CONES_COUNTS;
+      case "combed_cones":
+        return COMBED_CONES_COUNTS;
+      default:
+        return CARDED_RING_CONES_COUNTS;
+    }
+  }, [dbCategory]);
+
+  // Derived status lists for study explorer
+  const studyAvailableCounts = useMemo(() => {
+    switch (studyDbCategory) {
+      case "carded_ring_cones":
+        return CARDED_RING_CONES_COUNTS;
+      case "combed_ring_cones":
+        return COMBED_RING_CONES_COUNTS;
+      case "combed_cones":
+        return COMBED_CONES_COUNTS;
+      default:
+        return CARDED_RING_CONES_COUNTS;
+    }
+  }, [studyDbCategory]);
+
+  // Fetch study statistics based on selection
+  const studyStats = useMemo(() => {
+    switch (studyDbCategory) {
+      case "carded_ring_cones":
+        return cardedRingConesStatistics;
+      case "combed_ring_cones":
+        return combedRingConesStatistics;
+      case "combed_cones":
+        return combedConesStatistics;
+      default:
+        return cardedRingConesStatistics;
+    }
+  }, [studyDbCategory]);
+
+  // Auto-sync valid count values when the user updates the database category
+  React.useEffect(() => {
+    if (!isCustomNe) {
+      if (!availableCounts.includes(ne)) {
+        if (availableCounts.includes(30)) {
+          setNe(30);
+          setCustomNeVal("30");
+        } else {
+          setNe(availableCounts[0]);
+          setCustomNeVal(availableCounts[0].toString());
+        }
+      }
+    }
+  }, [dbCategory, availableCounts, ne, isCustomNe]);
+
+  React.useEffect(() => {
+    if (!isCustomStudyNe) {
+      if (!studyAvailableCounts.includes(studyNe)) {
+        if (studyAvailableCounts.includes(30)) {
+          setStudyNe(30);
+          setCustomStudyNeVal("30");
+        } else {
+          setStudyNe(studyAvailableCounts[0]);
+          setCustomStudyNeVal(studyAvailableCounts[0].toString());
+        }
+      }
+    }
+  }, [studyDbCategory, studyAvailableCounts, studyNe, isCustomStudyNe]);
 
   // Compute exact grading and percentiles for non-empty measurements
   const gradedResults = useMemo(() => {
@@ -302,214 +381,20 @@ export default function App() {
 
   // Handle preset loading
   const loadPresetLot = (preset: typeof SAMPLE_REPORTS[0]) => {
-    setYarnType(preset.yarnType as "carded" | "combed");
+    setDbCategory(preset.dbCategory);
     setNe(preset.ne);
+    setIsCustomNe(false);
+    setCustomNeVal(preset.ne.toString());
     const newMeas: Record<string, string> = {};
     Object.entries(preset.parameters).forEach(([k, v]) => {
       newMeas[k] = v.toString();
     });
     setMeasurements(newMeas);
-    setScanLogs([`Successfully populated preset lot: ${preset.name}`]);
-  };
-
-  // Convert files to base64 and call server scanning API
-  const handleUploadedFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    processScanFile(file);
-  };
-
-  // Local regex parser for offline / backup fallback
-  const parseTextLocally = (text: string) => {
-    const result: { yarnType: string; ne: number; parameters: Array<{ key: string; measured: number }> } = {
-      yarnType: "carded",
-      ne: 30,
-      parameters: []
-    };
-
-    const lowerText = text.toLowerCase();
-
-    if (lowerText.includes("combed") || lowerText.includes("compact") || lowerText.includes("combd")) {
-      result.yarnType = "combed";
-    } else if (lowerText.includes("carded") || lowerText.includes("cardd")) {
-      result.yarnType = "carded";
-    }
-
-    const countRegexes = [
-      /(?:ne|count|english\s*count|english|cnt)[:\s=]*(\d+(?:\.\d+)?)/i,
-      /(\d+(?:\.\d+)?)\s*(?:s|ne|english\s*count)/i,
-      /(?:yarn\s*count)[:\s=]*(\d+(?:\.\d+)?)/i
-    ];
-
-    for (const regex of countRegexes) {
-      const match = text.match(regex);
-      if (match && match[1]) {
-        const parsedNe = parseFloat(match[1]);
-        if (parsedNe >= 4 && parsedNe <= 160) {
-          result.ne = parsedNe;
-          break;
-        }
-      }
-    }
-
-    const keyConfigs = [
-      { key: "CVm", regexes: [/cvm\s*(?:[%\[\s]*)?[:\s=]*(\d+(?:\.\d+)?)/i, /cv\s*[%]?[:\s=]*(\d+(?:\.\d+)?)/i] },
-      { key: "CVm_1m", regexes: [/cvm\s*(?:1m|1\s*meter)\s*(?:[%\[\s]*)?[:\s=]*(\d+(?:\.\d+)?)/i, /cv1m\s*[:\s=]*(\d+(?:\.\d+)?)/i] },
-      { key: "CVm_3m", regexes: [/cvm\s*(?:3m|3\s*meter)\s*(?:[%\[\s]*)?[:\s=]*(\d+(?:\.\d+)?)/i, /cv3m\s*[:\s=]*(\d+(?:\.\d+)?)/i] },
-      { key: "CVb_CVm", regexes: [/cvb\s*(?:cvm)?\s*[:\s=]*(\d+(?:\.\d+)?)/i, /cvb\s*[:\s=]*(\d+(?:\.\d+)?)/i] },
-      { key: "Thin_40", regexes: [/thin(?:places)?\s*-40%?\s*[:\s=]*(\d+)/i, /-40%\s*[:\s=]*(\d+)/i] },
-      { key: "Thin_50", regexes: [/thin(?:places)?\s*-50%?\s*[:\s=]*(\d+)/i, /-50%\s*[:\s=]*(\d+)/i] },
-      { key: "Thick_35", regexes: [/thick(?:places)?\s*\+35%?\s*[:\s=]*(\d+)/i, /\+35%\s*[:\s=]*(\d+)/i] },
-      { key: "Thick_50", regexes: [/thick(?:places)?\s*\+50%?\s*[:\s=]*(\d+)/i, /\+50%\s*[:\s=]*(\d+)/i] },
-      { key: "Neps_140", regexes: [/neps?\s*\+140%?\s*[:\s=]*(\d+)/i, /\+140%\s*[:\s=]*(\d+)/i] },
-      { key: "Neps_200", regexes: [/neps?\s*\+200%?\s*[:\s=]*(\d+)/i, /\+200%\s*[:\s=]*(\d+)/i] },
-      { key: "H", regexes: [/\bh\b[:\s=]*(\d+(?:\.\d+)?)/i, /hairiness\s*[:\s=]*(\d+(?:\.\d+)?)/i] },
-      { key: "sH", regexes: [/\bsh\b[:\s=]*(\d+(?:\.\d+)?)/i, /hairiness\s*std\s*dev\s*[:\s=]*(\d+(?:\.\d+)?)/i] },
-      { key: "S3u", regexes: [/s3u?[:\s=]*(\d+(?:\.\d+)?)/i, /s3\s*>\s*3\s*mm[:\s=]*(\d+(?:\.\d+)?)/i] },
-      { key: "Dst_Cnt", regexes: [/dst\s*cnt[:\s=]*(\d+)/i, /dust\s*(?:count)?[:\s=]*(\d+)/i, /dust\/km[:\s=]*(\d+)/i] },
-      { key: "Tr_Cnt", regexes: [/tr\s*cnt[:\s=]*(\d+)/i, /trash\s*(?:count)?[:\s=]*(\d+)/i, /trash\/km[:\s=]*(\d+)/i] },
-    ];
-
-    for (const config of keyConfigs) {
-      for (const rx of config.regexes) {
-        const match = text.match(rx);
-        if (match && match[1]) {
-          const value = parseFloat(match[1]);
-          if (!isNaN(value)) {
-            result.parameters.push({
-              key: config.key,
-              measured: value
-            });
-            break;
-          }
-        }
-      }
-    }
-
-    return result;
-  };
-
-  const processScanFile = async (file: File) => {
-    setIsScanning(true);
-    setScanError(null);
-    setScanLogs([`Initializing optical OCR analysis of "${file.name}"...`]);
-
-    try {
-      let extractedText = "";
-
-      // Check if it's an image or text
-      if (file.type.startsWith("image/")) {
-        setScanLogs(prev => [...prev, "Spawning client-side Tesseract.js worker..."]);
-        
-        // Use Tesseract high-level recognize block
-        const tesseractResult = await Tesseract.recognize(
-          file,
-          "eng",
-          {
-            logger: (m) => {
-              if (m.status === "recognizing text") {
-                const percent = Math.round(m.progress * 100);
-                setScanLogs(prev => {
-                  const last = prev[prev.length - 1];
-                  if (last && last.startsWith("Recognizing text:")) {
-                    return [...prev.slice(0, -1), `Recognizing text: ${percent}%`];
-                  }
-                  return [...prev, `Recognizing text: ${percent}%`];
-                });
-              } else {
-                setScanLogs(prev => [...prev, `${m.status}...`]);
-              }
-            }
-          }
-        );
-
-        extractedText = tesseractResult.data.text;
-        setScanLogs(prev => [
-          ...prev, 
-          `Client-side Optical Scan Completed! Extracted ${extractedText.length} characters.`
-        ]);
-      } else {
-        // Fallback for reading text files
-        setScanLogs(prev => [...prev, "Loading plain text file..."]);
-        extractedText = await new Promise<string>((resolve, reject) => {
-          const r = new FileReader();
-          r.onload = () => resolve(r.result as string);
-          r.onerror = () => reject(new Error("Failed to read text file."));
-          r.readAsText(file);
-        });
-      }
-
-      if (!extractedText || extractedText.trim().length === 0) {
-        throw new Error("OCR did not capture any legible character streams. Please ensure the snapshot contains valid report texts.");
-      }
-
-      // Try calling full-stack backend endpoint (/api/parse-text) with extracted text
-      setScanLogs(prev => [...prev, "Connecting to server NLP parser with extracted text stream..."]);
-      let data;
-      try {
-        const res = await fetch("/api/parse-text", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: extractedText })
-        });
-
-        if (res.ok) {
-          data = await res.json();
-          setScanLogs(prev => [...prev, "Server Gemini model parsed report variables successfully!"]);
-        } else {
-          const errBody = await res.json().catch(() => ({}));
-          throw new Error(errBody.error || `HTTP ${res.status}`);
-        }
-      } catch (backendErr: any) {
-        console.warn("Backend parsing failed, falling back to client-side regex parser:", backendErr);
-        setScanLogs(prev => [
-          ...prev,
-          "Notice: Server-side Gemini model is offline/unreachable. Initiating automated client-side local parser..."
-        ]);
-        
-        const localData = parseTextLocally(extractedText);
-        if (localData.parameters.length === 0) {
-          throw new Error("Offline local parser was unable to identify standard Uster fields automatically. Please upload a clear photo or enter data manually.");
-        }
-        data = localData;
-      }
-
-      // Set state based on parsed data (from backend Gemini, or client fallback)
-      if (data.yarnType) {
-        setYarnType(data.yarnType === "combed" ? "combed" : "carded");
-      }
-      if (data.ne) {
-        setNe(Number(data.ne));
-      }
-
-      if (data.parameters && Array.isArray(data.parameters)) {
-        const nextMeas: Record<string, string> = {};
-        data.parameters.forEach((p: { key: string; measured: number }) => {
-          nextMeas[p.key] = p.measured.toString();
-        });
-        setMeasurements(nextMeas);
-        setScanLogs(prev => [
-          ...prev,
-          `Successfully processed Ne ${data.ne} ${data.yarnType} report with ${data.parameters.length} matching parameters!`
-        ]);
-      } else {
-        throw new Error("Extracted report parameters could not be read.");
-      }
-
-    } catch (err: any) {
-      console.error("Scan error details:", err);
-      setScanError(err.message || "Failed to scan report. Please ensure high clarity and check parameters.");
-      setScanLogs(prev => [...prev, "Scanning process interrupted."]);
-    } finally {
-      setIsScanning(false);
-    }
   };
 
   // Reset measurements
   const handleResetMeasurements = () => {
     setMeasurements({});
-    setScanLogs([]);
-    setScanError(null);
   };
 
   // Update specific measurement in lot
@@ -586,259 +471,168 @@ export default function App() {
             >
               {/* Left Column: Input Panel - Takes 5 cols */}
               <div className="lg:col-span-5 flex flex-col gap-6" id="input_panel">
-                {/* Mode Selector Manual vs AI */}
-                <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-xs">
-                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">
-                    Input Mode
+                {/* Standard & Yarn Lot Selector */}
+                <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
+                  <h3 className="text-[10px] font-extrabold text-[#4f46e5] uppercase tracking-widest mb-4">
+                    1. Yarn Configuration & Reference DB
                   </h3>
-                  <div className="grid grid-cols-2 gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-200/60">
-                    <button
-                      onClick={() => setActiveInputTab("manual")}
-                      className={`py-2.5 text-xs sm:text-sm font-semibold rounded-lg transition-all ${
-                        activeInputTab === "manual"
-                          ? "bg-white text-indigo-600 shadow-sm border border-slate-200/40"
-                          : "text-slate-505 text-slate-500 hover:text-slate-800"
-                      }`}
-                    >
-                      <Sliders className="h-4 w-4 inline mr-1.5" />
-                      Manual Entry
-                    </button>
-                    <button
-                      onClick={() => setActiveInputTab("ai")}
-                      className={`py-2.5 text-xs sm:text-sm font-semibold rounded-lg transition-all ${
-                        activeInputTab === "ai"
-                          ? "bg-white text-indigo-600 shadow-sm border border-slate-200/40"
-                          : "text-slate-505 text-slate-500 hover:text-slate-800"
-                      }`}
-                    >
-                      <Sparkles className="h-4 w-4 inline mr-1.5" />
-                      AI Scan Report
-                    </button>
+                  
+                  <div className="space-y-4">
+                    {/* Database Category Selection */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                        Yarn Standard Category
+                      </label>
+                      <select
+                        value={dbCategory}
+                        onChange={(e) => setDbCategory(e.target.value as any)}
+                        className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-slate-55 bg-slate-50 hover:bg-slate-100/50 border border-slate-250 border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-semibold text-slate-800"
+                      >
+                        <option value="carded_ring_cones">Cotton (carded) - Ring Spun Yarn</option>
+                        <option value="combed_ring_cones">Cotton (combed) - Ring Spun Yarn</option>
+                        <option value="combed_cones">Cotton (combed) - Compact Spun Yarn</option>
+                      </select>
+                    </div>
+
+                    {/* Count Selector Input (Standard Select / Manual Custom Input) */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                          Yarn Count (Ne)
+                        </label>
+                        {/* Custom Segmented Switcher */}
+                        <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200/80">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsCustomNe(false);
+                              if (!availableCounts.includes(ne)) {
+                                const fallback = availableCounts.includes(30) ? 30 : availableCounts[0];
+                                setNe(fallback);
+                                setCustomNeVal(fallback.toString());
+                              }
+                            }}
+                            className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all ${
+                              !isCustomNe
+                                ? "bg-white text-indigo-700 shadow-3xs"
+                                : "text-slate-500 hover:text-slate-800"
+                            }`}
+                          >
+                            Standard List
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsCustomNe(true);
+                              setCustomNeVal(ne.toString());
+                            }}
+                            className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all ${
+                              isCustomNe
+                                ? "bg-white text-indigo-700 shadow-3xs"
+                                : "text-slate-500 hover:text-slate-800"
+                            }`}
+                          >
+                            Custom Count
+                          </button>
+                        </div>
+                      </div>
+
+                      {!isCustomNe ? (
+                        <select
+                          value={ne}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            setNe(val);
+                            setCustomNeVal(val.toString());
+                          }}
+                          className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-slate-50 hover:bg-slate-100/50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-mono font-bold text-slate-850"
+                        >
+                          {availableCounts.map((countVal) => (
+                            <option key={countVal} value={countVal}>
+                              Ne {countVal.toFixed(1)}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div className="relative">
+                          <input
+                            type="text"
+                            placeholder="Type count (e.g., 6, 7, 8, 32.5)"
+                            value={customNeVal}
+                            onChange={(e) => {
+                              const valStr = e.target.value;
+                              setCustomNeVal(valStr);
+                              const parsed = parseFloat(valStr);
+                              if (!isNaN(parsed) && parsed > 0) {
+                                setNe(parsed);
+                              }
+                            }}
+                            className="w-full px-3.5 py-2.5 pr-12 text-xs sm:text-sm bg-white border border-slate-200 hover:border-slate-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-mono font-bold text-slate-850 shadow-3xs"
+                          />
+                          <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 font-mono">
+                            Ne
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Lot Configuration: Common for both inputs */}
-                  <div className="mt-4 pt-4 border-t border-slate-100">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-[10px] font-bold tracking-widest text-[#4f46e5]/80 uppercase mb-1.5">
-                          Yarn Type
-                        </label>
-                        <select
-                          value={yarnType}
-                          onChange={(e) => setYarnType(e.target.value as "carded" | "combed")}
-                          className="w-full px-3 py-2 text-sm bg-slate-50/50 border border-slate-200/80 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
-                        >
-                          <option value="carded">Carded Ring yarn</option>
-                          <option value="combed">Combed Compact yarn</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-[10px] font-bold tracking-widest text-[#4f46e5]/80 uppercase mb-1.5">
-                          Lot Count (Ne)
-                        </label>
-                        <input
-                          type="number"
-                          min={yarnType === "carded" ? 6 : 20}
-                          max={yarnType === "carded" ? 40 : 120}
-                          step="0.1"
-                          value={ne}
-                          onChange={(e) => setNe(Math.max(1, Number(e.target.value)))}
-                          className="w-full px-3 py-2 text-sm bg-slate-50/50 border border-slate-200/80 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-mono font-bold"
-                        />
-                      </div>
-                    </div>
-                    <div className="mt-3 text-[11px] text-indigo-700 bg-indigo-50/50 px-3 py-2 rounded-lg border border-indigo-100/60 flex items-center gap-2 font-medium">
-                      <Info className="h-3.5 w-3.5 text-indigo-550 shrink-0" />
-                      <span>
-                        Count bounds: {yarnType === "carded" ? "Carded Ring 6.0 – 40.0 Ne" : "Combed Compact 20.0 – 120.0 Ne"}
-                      </span>
+                  {/* dynamic target boundaries banner */}
+                  <div className="mt-4 pt-4 border-t border-slate-100 text-[11px] text-indigo-700 bg-indigo-50/50 px-3 py-2.5 rounded-xl border border-indigo-100/50 flex items-start gap-2.5 font-medium">
+                    <Info className="h-4 w-4 text-indigo-550 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold block text-indigo-950">Active Uster DB Lookup Rules:</span>
+                      <p className="text-indigo-700 text-[10px] leading-relaxed mt-0.5">
+                        Currently analyzing against <strong>{dbCategory === "carded_ring_cones" ? "Cotton (carded) - Ring Spun" : dbCategory === "combed_ring_cones" ? "Cotton (combed) - Ring Spun" : "Cotton (combed) - Compact Spun"}</strong> statistics at standard count <strong>Ne {ne.toFixed(1)}</strong>. Only standard counts matching Uster laboratory rules are available in the dropdown selector.
+                      </p>
                     </div>
                   </div>
                 </div>
 
-                {/* Tab content area */}
-                <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-xs flex-1">
-                  {activeInputTab === "ai" ? (
-                    <div className="flex flex-col gap-4 h-full" id="uploader_area">
-                      <div className="flex items-center justify-between">
-                        <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                          <Sparkles className="h-4 w-4 text-indigo-600" />
-                          Optical Uster OCR Scanner
-                        </h2>
-                        <button
-                          onClick={() => setShowFileHelp(!showFileHelp)}
-                          className="text-slate-400 hover:text-slate-600 transition-colors"
-                        >
-                          <HelpCircle className="h-4.5 w-4.5" />
-                        </button>
-                      </div>
-
-                      {showFileHelp && (
-                        <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl text-xs text-slate-600 space-y-2 leading-relaxed">
-                          <p className="font-bold text-slate-800">Supported Files & Images:</p>
-                          <p>
-                            Take a photograph or upload a PDF snippet of your Uster Tester Lot Report or printout.
-                            The server-side intelligence extracts standard count variables and parses lot imperfections safely.
-                          </p>
-                          <p>
-                            Your API secret is kept secure within backend services. Never exposed to browsers.
-                          </p>
+                {/* Preset Lots - Practice Examples */}
+                <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
+                  <h3 className="text-[10px] font-extrabold text-[#4f46e5] uppercase tracking-widest mb-2.5">
+                    2. Active Preset Lot Examples
+                  </h3>
+                  <p className="text-xs text-slate-500 leading-normal mb-3">
+                    Load these pre-recorded spinning mill presets to instantly inspect how YarnGrade rates mass uniformity:
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    {SAMPLE_REPORTS.map((preset, index) => (
+                      <button
+                        key={index}
+                        onClick={() => loadPresetLot(preset)}
+                        className="text-left w-full px-3.5 py-2.5 bg-slate-50 hover:bg-indigo-50/40 text-xs font-semibold rounded-xl border border-slate-200/50 flex items-center justify-between group transition-all"
+                      >
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-slate-400 group-hover:text-indigo-650 transition-colors" />
+                          <span className="text-slate-700 group-hover:text-indigo-900 font-medium">{preset.name}</span>
                         </div>
-                      )}
+                        <span className="text-[10px] bg-white px-2 py-0.5 rounded-lg border border-slate-200 font-mono text-slate-650 font-bold">
+                          Ne {preset.ne}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-                      {/* Dual-method capture container */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {/* Option 1: File/Image Upload */}
-                        <div className="relative border-2 border-dashed border-slate-200/80 rounded-2xl bg-slate-50/50 hover:bg-slate-50 transition-all p-6 text-center flex flex-col items-center justify-center cursor-pointer group overflow-hidden min-h-[190px]">
-                          <input
-                            type="file"
-                            accept="image/*,application/pdf"
-                            onChange={handleUploadedFile}
-                            disabled={isScanning}
-                            className="absolute inset-0 opacity-0 cursor-pointer z-20"
-                            id="file-upload-input"
-                          />
-                          
-                          <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:12px_12px] pointer-events-none"></div>
-                          
-                          {isScanning && (
-                            <div className="absolute top-0 left-0 w-full h-[2px] bg-indigo-500 shadow-[0_0_8px_rgba(79,70,229,0.8)] animate-[bounce_2.5s_infinite] pointer-events-none z-10" />
-                          )}
-
-                          <div className="bg-white p-2.5 rounded-xl shadow-xs border border-slate-100 group-hover:scale-105 transition-transform mb-2.5 z-10">
-                            <Upload className="h-5.5 w-5.5 text-indigo-600" />
-                          </div>
-                          <p className="text-xs font-bold text-slate-800 z-10">
-                            Upload File / Report
-                          </p>
-                          <p className="text-[10px] text-slate-400 mt-1 leading-relaxed z-10 max-w-[170px]">
-                            Upload a saved PDF snippet, report photo, or scanner image
-                          </p>
-                          <p className="text-[8px] font-extrabold text-indigo-600 uppercase tracking-wider mt-2.5 bg-white px-2 py-0.5 rounded border border-slate-200/55 font-mono z-10 shadow-3xs">
-                            PDF, PNG, JPG to 20MB
-                          </p>
-                        </div>
-
-                        {/* Option 2: Live Camera Scan (Capture Environment) */}
-                        <div className="relative border-2 border-dashed border-indigo-200/80 rounded-2xl bg-indigo-50/20 hover:bg-indigo-50/45 transition-all p-6 text-center flex flex-col items-center justify-center cursor-pointer group overflow-hidden min-h-[190px]">
-                          <input
-                            type="file"
-                            accept="image/*"
-                            capture="environment"
-                            onChange={handleUploadedFile}
-                            disabled={isScanning}
-                            className="absolute inset-0 opacity-0 cursor-pointer z-20"
-                            id="camera-upload-input"
-                          />
-                          
-                          <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#6366f1_1px,transparent_1px)] [background-size:12px_12px] pointer-events-none"></div>
-                          
-                          {isScanning && (
-                            <div className="absolute top-0 left-0 w-full h-[2px] bg-indigo-500 shadow-[0_0_8px_rgba(79,70,229,0.8)] animate-[bounce_2.5s_infinite] pointer-events-none z-10" />
-                          )}
-
-                          <div className="bg-white p-2.5 rounded-xl shadow-xs border border-indigo-100 group-hover:scale-105 transition-transform mb-2.5 z-10">
-                            <Camera className="h-5.5 w-5.5 text-indigo-650" />
-                          </div>
-                          <p className="text-xs font-bold text-slate-950 z-10 flex items-center gap-1 justify-center">
-                            Use Mobile Camera
-                          </p>
-                          <p className="text-[10px] text-slate-500 mt-1 leading-relaxed z-10 max-w-[170px]">
-                            Trigger front or back camera directly to snap paper reports
-                          </p>
-                          <p className="text-[8px] font-extrabold text-indigo-655 text-indigo-600 uppercase tracking-wider mt-2.5 bg-white px-2 py-0.5 rounded border border-indigo-120 border-indigo-105 font-mono z-10 shadow-3xs">
-                            Camera Capture Mode
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Google Lens Helper Guide banner */}
-                      <div className="mt-1 bg-gradient-to-r from-indigo-50/45 to-slate-50/40 p-3 rounded-xl border border-indigo-100/40 text-left flex items-start gap-2.5">
-                        <span className="text-base mt-0.5">💡</span>
-                        <div className="space-y-0.5">
-                          <p className="text-[11px] font-bold text-slate-800">Google Lens & Camera Integration Guide</p>
-                          <p className="text-[10px] text-slate-500 leading-relaxed">
-                            For maximum precision: tap <strong className="text-indigo-600">Use Mobile Camera</strong> on smartphones to activate your high-clarity device lens. You can also scan your report directly using <strong className="text-indigo-600">Google Lens</strong> to copy the text and upload or paste it here directly!
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* AI Lot Presets */}
-                      <div className="mt-2 bg-slate-50/70 p-4.5 p-4 rounded-xl border border-slate-100">
-                        <span className="text-[10px] font-extrabold tracking-widest text-[#4f46e5] uppercase">PRACTICE EXAMPLES</span>
-                        <p className="text-xs text-slate-500 mt-1 mb-2.5">No report file? Click a test lot preset below to watch the grading lot variations in real-time:</p>
-                        <div className="flex flex-col gap-2">
-                          {SAMPLE_REPORTS.map((preset, index) => (
-                            <button
-                              key={index}
-                              onClick={() => loadPresetLot(preset)}
-                              className="text-left w-full px-3 py-2 bg-white hover:bg-slate-100/55 text-xs font-semibold rounded-lg border border-slate-200/60 flex items-center justify-between group transition-all"
-                            >
-                              <div className="flex items-center gap-1.5">
-                                <FileText className="h-3.5 w-3.5 text-slate-450 text-slate-400 group-hover:text-indigo-600 transition-colors" />
-                                <span className="text-slate-700 group-hover:text-indigo-900">{preset.name}</span>
-                              </div>
-                              <span className="text-[10px] bg-slate-150 bg-slate-100 px-1.5 py-0.5 rounded font-mono text-slate-500">
-                                Ne {preset.ne}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Diagnostic Scan Logs */}
-                      {scanLogs.length > 0 && (
-                        <div className="mt-2 bg-slate-900 text-slate-300 p-4 rounded-xl border border-slate-800 font-mono text-[11px] space-y-1">
-                          <p className="text-indigo-400 font-bold text-[10px] tracking-wider uppercase">Analytic Terminal Logs</p>
-                          <div className="max-h-32 overflow-y-auto space-y-1">
-                            {scanLogs.map((log, i) => (
-                              <p key={i} className="leading-snug">
-                                <span className="text-slate-500">&gt;</span> {log}
-                              </p>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Error display */}
-                      {scanError && (
-                        <div className="bg-red-50 border border-red-150 border-red-100 text-red-800 rounded-xl p-3.5 text-xs flex items-start gap-2.5">
-                          <AlertTriangle className="h-4.5 w-4.5 text-red-500 shrink-0 mt-0.5" />
-                          <div>
-                            <p className="font-bold text-red-950">Scout Engine Interrupt</p>
-                            <p className="mt-0.5 text-red-700 leading-relaxed">{scanError}</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Scanning placeholder */}
-                      {isScanning && (
-                        <div className="my-auto flex flex-col items-center justify-center py-6 text-center">
-                          <div className="relative mb-3 flex items-center justify-center">
-                            <div className="animate-spin rounded-full h-10 w-10 border-2 border-indigo-600 border-t-transparent"></div>
-                            <Sparkles className="h-4 w-4 text-indigo-650 text-indigo-600 absolute animate-pulse" />
-                          </div>
-                          <p className="text-xs font-bold animate-pulse text-indigo-600">
-                            Analyzing textiles and alignments...
-                          </p>
-                        </div>
-                      )}
+                {/* Parameters Manual inputs container */}
+                <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex-1 flex flex-col gap-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-base font-extrabold text-slate-900">
+                        3. Lot Parameters Entry
+                      </h2>
+                      <p className="text-[10px] text-slate-400 leading-none mt-1">Enter your laboratory measurements below:</p>
                     </div>
-                  ) : (
-                    <div className="flex flex-col gap-4" id="manual_form">
-                      <div className="flex items-center justify-between pointer-events-auto">
-                        <h2 className="text-base font-bold text-slate-900">
-                          Lot Parameters Entry
-                        </h2>
-                        <button
-                          onClick={handleResetMeasurements}
-                          className="text-xs bg-slate-100/80 hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 px-3 py-1.5 rounded-lg border border-slate-200/60 font-bold transition-all flex items-center gap-1.5 shadow-3xs"
-                        >
-                          <RotateCcw className="h-3.5 w-3.5" />
-                          Clear Inputs
-                        </button>
-                      </div>
+                    <button
+                      onClick={handleResetMeasurements}
+                      className="text-xs bg-slate-100/80 hover:bg-red-50 hover:text-red-650 hover:border-red-200 text-slate-600 px-2.5 py-1.5 rounded-lg border border-slate-200/60 font-bold transition-all flex items-center gap-1 shadow-3xs"
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      Clear Inputs
+                    </button>
+                  </div>
 
                       {/* Categories filter button rows */}
                       <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
@@ -867,45 +661,66 @@ export default function App() {
                           )
                           .map((p) => {
                             const info = PARAM_INFO[p.key];
+                            const { cols: refCols, values: refValues } = getPercentilesForCount(p, ne);
                             return (
                               <div
                                 key={p.key}
-                                className="p-3.5 bg-slate-50/50 border border-slate-200/60 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 group hover:border-indigo-200 hover:bg-white transition-all duration-200 shadow-3xs"
+                                className="p-3.5 bg-slate-50/50 border border-slate-200/60 rounded-xl flex flex-col justify-between gap-3 group hover:border-indigo-200 hover:bg-white transition-all duration-200 shadow-3xs"
                               >
-                                <div className="sm:max-w-3/5">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-sm text-slate-500 inline-block group-hover:scale-110 transition-transform">
-                                      {info?.icon || "📊"}
-                                    </span>
-                                    <span className="text-sm font-bold text-slate-800">
-                                      {info?.label || p.name}
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                  <div className="sm:max-w-3/5">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-sm text-slate-500 inline-block group-hover:scale-110 transition-transform">
+                                        {info?.icon || "📊"}
+                                      </span>
+                                      <span className="text-sm font-bold text-slate-800">
+                                        {info?.label || p.name}
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-400 mt-1 leading-normal group-hover:text-slate-555 transition-colors">
+                                      {info?.description || p.name}
+                                    </p>
+                                  </div>
+
+                                  <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0">
+                                    <input
+                                      type="text"
+                                      placeholder="--"
+                                      value={measurements[p.key] || ""}
+                                      onChange={(e) => handleUpdateVal(p.key, e.target.value)}
+                                      className="w-24 px-2.5 py-1.5 bg-white border border-slate-200/80 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-mono text-sm text-center font-extrabold text-slate-850 shadow-3xs group-hover:border-indigo-200 transition-colors"
+                                    />
+                                    <span className="text-xs text-slate-400 font-bold w-10">
+                                      {p.unit}
                                     </span>
                                   </div>
-                                  <p className="text-[11px] text-slate-400 mt-1 leading-normal group-hover:text-slate-555 transition-colors">
-                                    {info?.description || p.name}
-                                  </p>
                                 </div>
 
-                                <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0">
-                                  <input
-                                    type="text"
-                                    placeholder="--"
-                                    value={measurements[p.key] || ""}
-                                    onChange={(e) => handleUpdateVal(p.key, e.target.value)}
-                                    className="w-24 px-2.5 py-1.5 bg-white border border-slate-200/80 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-mono text-sm text-center font-extrabold text-slate-850 shadow-3xs group-hover:border-indigo-200 transition-colors"
-                                  />
-                                  <span className="text-xs text-slate-400 font-bold w-10">
-                                    {p.unit}
-                                  </span>
-                                </div>
+                                {refValues && refValues.length > 0 && (
+                                  <div className="pt-2 border-t border-dashed border-slate-200/80 flex flex-wrap items-center gap-2 text-[10px] text-slate-550 text-slate-600">
+                                    <span className="font-extrabold text-[9px] uppercase tracking-wider text-slate-400 shrink-0">
+                                      Uster standards (Ne {ne.toFixed(1)}):
+                                    </span>
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                      {refCols.map((col, idx) => {
+                                        if (col === 5 || col === 50 || col === 95) {
+                                          return (
+                                            <span key={idx} className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-mono text-[10px]">
+                                              <span className="font-bold">{col}%</span> limit: <strong className="text-slate-800 font-bold">{refValues[idx]}</strong>
+                                            </span>
+                                          );
+                                        }
+                                        return null;
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             );
                           })}
                       </div>
                     </div>
-                  )}
                 </div>
-              </div>
 
               {/* Right Column: Calculations & Results - Takes 7 cols */}
               <div className="lg:col-span-7 flex flex-col gap-6" id="results_panel">
@@ -1158,34 +973,81 @@ export default function App() {
                 {/* Browser Study Form */}
                 <div className="flex flex-wrap items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200 self-start sm:self-auto shadow-xs">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-600">Yarn:</span>
+                    <span className="text-xs font-bold text-slate-600">Standard DB:</span>
                     <select
-                      value={studyYarnType}
-                      onChange={(e) => setStudyYarnType(e.target.value as "carded" | "combed")}
-                      className="px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-hidden font-medium"
+                      value={studyDbCategory}
+                      onChange={(e) => setStudyDbCategory(e.target.value as any)}
+                      className="px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-hidden font-medium text-slate-800"
                     >
-                      <option value="carded">Carded Ring yarn</option>
-                      <option value="combed">Combed Compact yarn</option>
+                      <option value="carded_ring_cones">Cotton (carded) - Ring Spun Yarn</option>
+                      <option value="combed_ring_cones">Cotton (combed) - Ring Spun Yarn</option>
+                      <option value="combed_cones">Cotton (combed) - Compact Spun Yarn</option>
                     </select>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-slate-600">Count (Ne):</span>
-                    <input
-                      type="number"
-                      min={studyYarnType === "carded" ? 6 : 20}
-                      max={studyYarnType === "carded" ? 40 : 120}
-                      value={studyNe}
-                      onChange={(e) => setStudyNe(Math.max(1, Number(e.target.value)))}
-                      className="w-16 px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-hidden font-mono font-bold text-center"
-                    />
+                    {isCustomStudyNe ? (
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          value={customStudyNeVal}
+                          onChange={(e) => {
+                            setCustomStudyNeVal(e.target.value);
+                            const parsed = parseFloat(e.target.value);
+                            if (!isNaN(parsed) && parsed > 0) {
+                              setStudyNe(parsed);
+                            }
+                          }}
+                          className="w-16 px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-mono font-bold text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-indigo-500/35"
+                          placeholder="e.g. 7"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setIsCustomStudyNe(false)}
+                          className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[10px] font-bold transition-all"
+                          title="Select template from list"
+                        >
+                          List
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <select
+                          value={studyNe}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            setStudyNe(val);
+                            setCustomStudyNeVal(val.toString());
+                          }}
+                          className="px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-hidden font-mono font-bold text-center text-slate-800"
+                        >
+                          {studyAvailableCounts.map((countVal) => (
+                            <option key={countVal} value={countVal}>
+                              Ne {countVal.toFixed(1)}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsCustomStudyNe(true);
+                            setCustomStudyNeVal(studyNe.toString());
+                          }}
+                          className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 text-indigo-700 rounded-lg text-[10px] font-bold transition-all"
+                          title="Enter custom count manually"
+                        >
+                          Custom
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
 
               {/* Grid representation */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {(studyYarnType === "carded" ? cardedStatistics : combedStatistics).map((param) => {
+                {studyStats.map((param) => {
                   const { cols, values } = getPercentilesForCount(param, studyNe);
                   const info = PARAM_INFO[param.key];
 
@@ -1256,11 +1118,16 @@ export default function App() {
             </button>
 
             {(() => {
-              const pRef = (studyYarnType === "carded" ? cardedStatistics : combedStatistics).find(
+              const pRef = studyStats.find(
                 (p) => p.key === infoModalKey
               );
               if (!pRef) return null;
               const info = PARAM_INFO[pRef.key];
+              const studyYarnLabel = studyDbCategory === "carded_ring_cones" 
+                ? "Cotton (carded) - Ring Spun" 
+                : studyDbCategory === "combed_ring_cones" 
+                ? "Cotton (combed) - Ring Spun" 
+                : "Cotton (combed) - Compact Spun";
 
               return (
                 <div className="space-y-3">
@@ -1278,7 +1145,7 @@ export default function App() {
 
                   <div className="mt-4 pt-4 border-t border-slate-100">
                     <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 font-mono">
-                      Nominal ranges for {studyNe} Ne {studyYarnType}
+                      Nominal ranges for Ne {studyNe.toFixed(1)} ({studyYarnLabel})
                     </h4>
 
                     <div className="space-y-1.5 text-xs text-slate-600 font-medium">

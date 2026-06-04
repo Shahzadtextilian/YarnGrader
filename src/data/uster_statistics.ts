@@ -6,7 +6,8 @@ export interface UsterParameter {
   data: { ne: number; values: number[] }[];
 }
 
-export const cardedStatistics: UsterParameter[] = [
+// 1. Carded Ring Bobbins & Cones - Weaving and Hosiery
+export const cardedRingConesStatistics: UsterParameter[] = [
   {
     name: "CVm - Coefficient of variation of mass [%]",
     key: "CVm",
@@ -18,7 +19,7 @@ export const cardedStatistics: UsterParameter[] = [
       { ne: 10.0, values: [11.46, 12.52, 13.60, 14.77, 16.15] },
       { ne: 12.0, values: [11.83, 12.91, 14.00, 15.17, 16.51] },
       { ne: 14.0, values: [12.16, 13.25, 14.35, 15.52, 16.83] },
-      { ne: 16.5, values: [12.52, 13.62, 14.73, 15.89, 17.17] },
+      { ne: 16.0, values: [12.44, 13.54, 14.65, 15.81, 17.10] },
       { ne: 18.0, values: [12.71, 13.82, 14.94, 16.09, 17.35] },
       { ne: 20.0, values: [12.95, 14.07, 15.19, 16.34, 17.58] },
       { ne: 24.0, values: [13.37, 14.51, 15.64, 16.78, 17.98] },
@@ -37,10 +38,13 @@ export const cardedStatistics: UsterParameter[] = [
     data: [
       { ne: 6.0, values: [3.48, 4.06, 4.51, 5.12, 5.81] },
       { ne: 10.0, values: [3.56, 4.13, 4.59, 5.21, 5.90] },
+      { ne: 12.0, values: [3.58, 4.15, 4.61, 5.24, 5.93] },
       { ne: 14.0, values: [3.61, 4.18, 4.64, 5.27, 5.96] },
+      { ne: 18.0, values: [3.65, 4.21, 4.68, 5.31, 6.00] },
       { ne: 20.0, values: [3.67, 4.23, 4.70, 5.34, 6.03] },
       { ne: 24.0, values: [3.70, 4.26, 4.73, 5.37, 6.06] },
       { ne: 30.0, values: [3.74, 4.29, 4.77, 5.42, 6.10] },
+      { ne: 36.0, values: [3.76, 4.31, 4.79, 5.44, 6.13] },
       { ne: 40.0, values: [3.78, 4.34, 4.82, 5.47, 6.16] }
     ]
   },
@@ -239,168 +243,259 @@ export const cardedStatistics: UsterParameter[] = [
   }
 ];
 
-export const combedStatistics: UsterParameter[] = [
-  ...cardedStatistics
-    .filter(p => p.key !== "Tr_Cnt") // Combed compact does not have standard trash tables in the set
-    .map(p => {
-      // Create combing equivalent
-      let combedData: { ne: number; values: number[] }[] = [];
-      if (p.key === "CVm") {
-        combedData = [
-          { ne: 20.0, values: [9.24, 9.96, 10.72, 11.49, 12.27] },
-          { ne: 24.0, values: [9.65, 10.35, 11.09, 11.85, 12.60] },
-          { ne: 30.0, values: [10.18, 10.86, 11.57, 12.30, 13.01] },
-          { ne: 40.0, values: [10.90, 11.55, 12.21, 12.90, 13.57] },
-          { ne: 50.0, values: [11.50, 12.11, 12.73, 13.39, 14.01] },
-          { ne: 60.0, values: [12.02, 12.60, 13.18, 13.81, 14.38] },
-          { ne: 80.0, values: [12.87, 13.39, 13.91, 14.49, 15.00] },
-          { ne: 100.0, values: [13.58, 14.05, 14.50, 15.04, 15.49] },
-          { ne: 120.0, values: [14.19, 14.61, 15.01, 15.51, 15.90] }
-        ];
-      } else if (p.key === "CVm_1m") {
-        combedData = [
-          { ne: 20.0, values: [3.10, 3.41, 3.72, 4.01, 4.39] },
-          { ne: 30.0, values: [3.25, 3.55, 3.85, 4.15, 4.52] },
-          { ne: 40.0, values: [3.36, 3.66, 3.95, 4.25, 4.61] },
-          { ne: 60.0, values: [3.53, 3.81, 4.09, 4.40, 4.74] },
-          { ne: 80.0, values: [3.65, 3.92, 4.20, 4.50, 4.84] },
-          { ne: 100.0, values: [3.75, 4.01, 4.28, 4.59, 4.91] },
-          { ne: 120.0, values: [3.83, 4.09, 4.35, 4.66, 4.98] }
-        ];
-      } else if (p.key === "CVm_3m") {
-        combedData = [
-          { ne: 20.0, values: [2.26, 2.54, 2.80, 3.05, 3.43] },
-          { ne: 30.0, values: [2.34, 2.62, 2.88, 3.15, 3.51] },
-          { ne: 40.0, values: [2.40, 2.68, 2.94, 3.21, 3.56] },
-          { ne: 60.0, values: [2.49, 2.76, 3.02, 3.31, 3.65] },
-          { ne: 80.0, values: [2.55, 2.82, 3.08, 3.38, 3.71] },
-          { ne: 100.0, values: [2.60, 2.87, 3.13, 3.44, 3.76] },
-          { ne: 120.0, values: [2.64, 2.91, 3.17, 3.48, 3.80] }
-        ];
-      } else if (p.key === "CVb_CVm") {
-        combedData = [
-          { ne: 20.0, values: [1.0, 1.4, 2.0, 2.8, 3.6] },
-          { ne: 30.0, values: [1.1, 1.5, 2.1, 2.9, 3.7] },
-          { ne: 40.0, values: [1.2, 1.6, 2.2, 3.0, 3.8] },
-          { ne: 60.0, values: [1.2, 1.7, 2.3, 3.1, 4.0] },
-          { ne: 80.0, values: [1.3, 1.8, 2.4, 3.2, 4.1] },
-          { ne: 100.0, values: [1.4, 1.8, 2.4, 3.2, 4.2] },
-          { ne: 120.0, values: [1.4, 1.9, 2.5, 3.3, 4.3] }
-        ];
-      } else if (p.key === "Thin_40") {
-        combedData = [
-          { ne: 20.0, values: [6, 11, 18, 27, 42] },
-          { ne: 30.0, values: [15, 25, 37, 55, 84] },
-          { ne: 40.0, values: [27, 43, 63, 93, 139] },
-          { ne: 60.0, values: [63, 95, 135, 194, 280] },
-          { ne: 80.0, values: [114, 166, 230, 326, 461] },
-          { ne: 100.0, values: [182, 257, 348, 488, 678] },
-          { ne: 120.0, values: [266, 366, 488, 678, 930] }
-        ];
-      } else if (p.key === "Thin_50") {
-        combedData = [
-          { ne: 20.0, values: [0, 0, 0, 0, 0] },
-          { ne: 30.0, values: [0, 0, 1, 1, 2] },
-          { ne: 40.0, values: [0, 1, 1, 2, 4] },
-          { ne: 60.0, values: [2, 3, 5, 9, 16] },
-          { ne: 80.0, values: [5, 8, 14, 24, 43] },
-          { ne: 100.0, values: [11, 18, 30, 49, 90] },
-          { ne: 120.0, values: [20, 34, 55, 89, 165] }
-        ];
-      } else if (p.key === "Thick_35") {
-        combedData = [
-          { ne: 20.0, values: [68, 98, 139, 205, 293] },
-          { ne: 30.0, values: [94, 131, 184, 266, 383] },
-          { ne: 40.0, values: [117, 160, 224, 320, 463] },
-          { ne: 60.0, values: [161, 214, 297, 414, 605] },
-          { ne: 80.0, values: [201, 263, 363, 498, 731] },
-          { ne: 100.0, values: [239, 308, 424, 575, 847] },
-          { ne: 120.0, values: [276, 351, 481, 646, 955] }
-        ];
-      } else if (p.key === "Thick_50") {
-        combedData = [
-          { ne: 20.0, values: [2, 3, 7, 14, 26] },
-          { ne: 30.0, values: [3, 6, 12, 23, 42] },
-          { ne: 40.0, values: [5, 9, 17, 33, 58] },
-          { ne: 60.0, values: [8, 16, 30, 54, 92] },
-          { ne: 80.0, values: [12, 24, 44, 77, 128] },
-          { ne: 100.0, values: [17, 33, 58, 102, 165] },
-          { ne: 120.0, values: [23, 44, 74, 127, 204] }
-        ];
-      } else if (p.key === "Neps_140") {
-        combedData = [
-          { ne: 20.0, values: [36, 61, 99, 174, 299] },
-          { ne: 30.0, values: [53, 88, 142, 243, 403] },
-          { ne: 40.0, values: [69, 115, 184, 309, 499] },
-          { ne: 60.0, values: [100, 166, 264, 432, 672] },
-          { ne: 80.0, values: [130, 217, 340, 548, 831] },
-          { ne: 100.0, values: [160, 266, 415, 660, 980] },
-          { ne: 120.0, values: [189, 315, 487, 767, 1121] }
-        ];
-      } else if (p.key === "Neps_200") {
-        combedData = [
-          { ne: 20.0, values: [8, 15, 28, 47, 84] },
-          { ne: 30.0, values: [11, 20, 36, 62, 109] },
-          { ne: 40.0, values: [14, 25, 43, 76, 131] },
-          { ne: 60.0, values: [19, 32, 56, 100, 171] },
-          { ne: 80.0, values: [23, 40, 67, 121, 206] },
-          { ne: 100.0, values: [28, 46, 77, 141, 237] },
-          { ne: 120.0, values: [32, 52, 86, 160, 267] }
-        ];
-      } else if (p.key === "H") {
-        combedData = [
-          { ne: 20.0, values: [4.8, 5.3, 5.8, 6.4, 7.0] },
-          { ne: 30.0, values: [3.8, 4.2, 4.6, 5.0, 5.5] },
-          { ne: 40.0, values: [3.2, 3.5, 3.9, 4.2, 4.7] },
-          { ne: 60.0, values: [2.6, 2.8, 3.1, 3.3, 3.7] },
-          { ne: 80.0, values: [2.2, 2.4, 2.6, 2.8, 3.1] },
-          { ne: 100.0, values: [1.9, 2.1, 2.3, 2.5, 2.7] },
-          { ne: 120.0, values: [1.7, 1.9, 2.1, 2.2, 2.4] }
-        ];
-      } else if (p.key === "sH") {
-        // In combed statistics, sH has all 5 columns [5, 25, 50, 75, 95] as per OCR
-        // We will keep standard values for sH
-        combedData = [
-          { ne: 20.0, values: [1.1, 1.2, 1.4, 1.5, 1.8] },
-          { ne: 30.0, values: [0.9, 1.0, 1.1, 1.2, 1.4] },
-          { ne: 40.0, values: [0.7, 0.8, 0.9, 1.1, 1.2] },
-          { ne: 60.0, values: [0.6, 0.7, 0.8, 0.9, 1.0] },
-          { ne: 80.0, values: [0.5, 0.6, 0.7, 0.7, 0.8] },
-          { ne: 100.0, values: [0.5, 0.5, 0.6, 0.7, 0.7] },
-          { ne: 120.0, values: [0.4, 0.5, 0.5, 0.6, 0.7] }
-        ];
-      } else if (p.key === "S3u") {
-        combedData = [
-          { ne: 20.0, values: [3832, 4387, 5115, 6002, 6787] },
-          { ne: 30.0, values: [2910, 3367, 4011, 4756, 5501] },
-          { ne: 40.0, values: [2394, 2791, 3375, 4032, 4740] },
-          { ne: 60.0, values: [1818, 2142, 2646, 3195, 3842] },
-          { ne: 80.0, values: [1496, 1776, 2227, 2709, 3310] },
-          { ne: 100.0, values: [1286, 1535, 1948, 2384, 2949] },
-          { ne: 120.0, values: [1136, 1363, 1746, 2147, 2683] }
-        ];
-      } else if (p.key === "Dst_Cnt") {
-        combedData = [
-          { ne: 20.0, values: [48, 79, 141, 295, 547] },
-          { ne: 30.0, values: [19, 31, 54, 109, 195] },
-          { ne: 40.0, values: [10, 16, 27, 54, 94] },
-          { ne: 60.0, values: [4, 6, 10, 20, 33] },
-          { ne: 80.0, values: [2, 3, 5, 10, 16] },
-          { ne: 100.0, values: [1, 2, 3, 6, 9] },
-          { ne: 120.0, values: [1, 1, 2, 4, 6] }
-        ];
-      } else {
-        // Fallback for missing params, just provide dummy mapping
-        combedData = p.data.map(d => ({ ne: d.ne, values: [...d.values] }));
-      }
-
-      return {
-        ...p,
-        cols: combedData[0]?.values.length === 5 ? [5, 25, 50, 75, 95] : [5, 50, 95],
-        data: combedData
-      };
-    })
+// 2. Combed Ring Bobbins & Cones - Weaving and Hosiery
+export const combedRingConesStatistics: UsterParameter[] = [
+  {
+    name: "CVm - Coefficient of variation of mass [%]",
+    key: "CVm",
+    unit: "%",
+    cols: [5, 25, 50, 75, 95],
+    data: [
+      { ne: 20.0, values: [9.24, 9.96, 10.72, 11.49, 12.27] },
+      { ne: 24.0, values: [9.65, 10.35, 11.09, 11.85, 12.60] },
+      { ne: 26.0, values: [9.88, 10.58, 11.31, 12.06, 12.78] },
+      { ne: 28.0, values: [10.03, 10.72, 11.44, 12.18, 12.89] },
+      { ne: 30.0, values: [10.18, 10.86, 11.57, 12.30, 13.01] },
+      { ne: 36.0, values: [10.54, 11.20, 11.89, 12.60, 13.29] },
+      { ne: 40.0, values: [10.90, 11.55, 12.21, 12.90, 13.57] },
+      { ne: 50.0, values: [11.50, 12.11, 12.73, 13.39, 14.01] },
+      { ne: 60.0, values: [12.02, 12.60, 13.18, 13.81, 14.38] },
+      { ne: 80.0, values: [12.87, 13.39, 13.91, 14.49, 15.00] },
+      { ne: 100.0, values: [13.58, 14.05, 14.50, 15.04, 15.49] },
+      { ne: 120.0, values: [14.19, 14.61, 15.01, 15.51, 15.90] }
+    ]
+  },
+  {
+    name: "CVm 1m - Coefficient of variation of mass 1m [%]",
+    key: "CVm_1m",
+    unit: "%",
+    cols: [5, 25, 50, 75, 95],
+    data: [
+      { ne: 20.0, values: [3.10, 3.41, 3.72, 4.01, 4.39] },
+      { ne: 30.0, values: [3.25, 3.55, 3.85, 4.15, 4.52] },
+      { ne: 40.0, values: [3.36, 3.66, 3.95, 4.25, 4.61] },
+      { ne: 60.0, values: [3.53, 3.81, 4.09, 4.40, 4.74] },
+      { ne: 80.0, values: [3.65, 3.92, 4.20, 4.50, 4.84] },
+      { ne: 100.0, values: [3.75, 4.01, 4.28, 4.59, 4.91] },
+      { ne: 120.0, values: [3.83, 4.09, 4.35, 4.66, 4.98] }
+    ]
+  },
+  {
+    name: "CVm 3m - Coefficient of variation of mass 3m [%]",
+    key: "CVm_3m",
+    unit: "%",
+    cols: [5, 25, 50, 75, 95],
+    data: [
+      { ne: 20.0, values: [2.26, 2.54, 2.80, 3.05, 3.43] },
+      { ne: 30.0, values: [2.34, 2.62, 2.88, 3.15, 3.51] },
+      { ne: 40.0, values: [2.40, 2.68, 2.94, 3.21, 3.56] },
+      { ne: 60.0, values: [2.49, 2.76, 3.02, 3.31, 3.65] },
+      { ne: 80.0, values: [2.55, 2.82, 3.08, 3.38, 3.71] },
+      { ne: 100.0, values: [2.60, 2.87, 3.13, 3.44, 3.76] },
+      { ne: 120.0, values: [2.64, 2.91, 3.17, 3.48, 3.80] }
+    ]
+  },
+  {
+    name: "CVb CVm - Coefficient of variation of mass, between [%]",
+    key: "CVb_CVm",
+    unit: "%",
+    cols: [5, 25, 50, 75, 95],
+    data: [
+      { ne: 20.0, values: [1.0, 1.4, 2.0, 2.8, 3.6] },
+      { ne: 30.0, values: [1.1, 1.5, 2.1, 2.9, 3.7] },
+      { ne: 40.0, values: [1.2, 1.6, 2.2, 3.0, 3.8] },
+      { ne: 60.0, values: [1.2, 1.7, 2.3, 3.1, 4.0] },
+      { ne: 80.0, values: [1.3, 1.8, 2.4, 3.2, 4.1] },
+      { ne: 100.0, values: [1.4, 1.8, 2.4, 3.2, 4.2] },
+      { ne: 120.0, values: [1.4, 1.9, 2.5, 3.3, 4.3] }
+    ]
+  },
+  {
+    name: "Thin -40% - Thin places -40% [/km]",
+    key: "Thin_40",
+    unit: "/km",
+    cols: [5, 25, 50, 75, 95],
+    data: [
+      { ne: 20.0, values: [6, 11, 18, 27, 42] },
+      { ne: 30.0, values: [15, 25, 37, 55, 84] },
+      { ne: 40.0, values: [27, 43, 63, 93, 139] },
+      { ne: 60.0, values: [63, 95, 135, 194, 280] },
+      { ne: 80.0, values: [114, 166, 230, 326, 461] },
+      { ne: 100.0, values: [182, 257, 348, 488, 678] },
+      { ne: 120.0, values: [266, 366, 488, 678, 930] }
+    ]
+  },
+  {
+    name: "Thin -50% - Thin places -50% [/km]",
+    key: "Thin_50",
+    unit: "/km",
+    cols: [5, 25, 50, 75, 95],
+    data: [
+      { ne: 20.0, values: [0, 0, 0, 0, 0] },
+      { ne: 30.0, values: [0, 0, 1, 1, 2] },
+      { ne: 40.0, values: [0, 1, 1, 2, 4] },
+      { ne: 60.0, values: [2, 3, 5, 9, 16] },
+      { ne: 80.0, values: [5, 8, 14, 24, 43] },
+      { ne: 100.0, values: [11, 18, 30, 49, 90] },
+      { ne: 120.0, values: [20, 34, 55, 89, 165] }
+    ]
+  },
+  {
+    name: "Thick +35% - Thick places +35% [/km]",
+    key: "Thick_35",
+    unit: "/km",
+    cols: [5, 25, 50, 75, 95],
+    data: [
+      { ne: 20.0, values: [68, 98, 139, 205, 293] },
+      { ne: 30.0, values: [94, 131, 184, 266, 383] },
+      { ne: 40.0, values: [117, 160, 224, 320, 463] },
+      { ne: 60.0, values: [161, 214, 297, 414, 605] },
+      { ne: 80.0, values: [201, 263, 363, 498, 731] },
+      { ne: 100.0, values: [239, 308, 424, 575, 847] },
+      { ne: 120.0, values: [276, 351, 481, 646, 955] }
+    ]
+  },
+  {
+    name: "Thick +50% - Thick places +50% [/km]",
+    key: "Thick_50",
+    unit: "/km",
+    cols: [5, 25, 50, 75, 95],
+    data: [
+      { ne: 20.0, values: [2, 3, 7, 14, 26] },
+      { ne: 30.0, values: [3, 6, 12, 23, 42] },
+      { ne: 40.0, values: [5, 9, 17, 33, 58] },
+      { ne: 60.0, values: [8, 16, 30, 54, 92] },
+      { ne: 80.0, values: [12, 24, 44, 77, 128] },
+      { ne: 100.0, values: [17, 33, 58, 102, 165] },
+      { ne: 120.0, values: [23, 44, 74, 127, 204] }
+    ]
+  },
+  {
+    name: "Neps +140% - Neps +140% [/km]",
+    key: "Neps_140",
+    unit: "/km",
+    cols: [5, 25, 50, 75, 95],
+    data: [
+      { ne: 20.0, values: [36, 61, 99, 174, 299] },
+      { ne: 30.0, values: [53, 88, 142, 243, 403] },
+      { ne: 40.0, values: [69, 115, 184, 309, 499] },
+      { ne: 60.0, values: [100, 166, 264, 432, 672] },
+      { ne: 80.0, values: [130, 217, 340, 548, 831] },
+      { ne: 100.0, values: [160, 266, 415, 660, 980] },
+      { ne: 120.0, values: [189, 315, 487, 767, 1121] }
+    ]
+  },
+  {
+    name: "Neps +200% - Neps +200% [/km]",
+    key: "Neps_200",
+    unit: "/km",
+    cols: [5, 25, 50, 75, 95],
+    data: [
+      { ne: 20.0, values: [8, 15, 28, 47, 84] },
+      { ne: 30.0, values: [11, 20, 36, 62, 109] },
+      { ne: 40.0, values: [14, 25, 43, 76, 131] },
+      { ne: 60.0, values: [19, 32, 56, 100, 171] },
+      { ne: 80.0, values: [23, 40, 67, 121, 206] },
+      { ne: 100.0, values: [28, 46, 77, 141, 237] },
+      { ne: 120.0, values: [32, 52, 86, 160, 267] }
+    ]
+  },
+  {
+    name: "H - Hairiness",
+    key: "H",
+    unit: "",
+    cols: [5, 25, 50, 75, 95],
+    data: [
+      { ne: 20.0, values: [4.8, 5.3, 5.8, 6.4, 7.0] },
+      { ne: 30.0, values: [3.8, 4.2, 4.6, 5.0, 5.5] },
+      { ne: 40.0, values: [3.2, 3.5, 3.9, 4.2, 4.7] },
+      { ne: 60.0, values: [2.6, 2.8, 3.1, 3.3, 3.7] },
+      { ne: 80.0, values: [2.2, 2.4, 2.6, 2.8, 3.1] },
+      { ne: 100.0, values: [1.9, 2.1, 2.3, 2.5, 2.7] },
+      { ne: 120.0, values: [1.7, 1.9, 2.1, 2.2, 2.4] }
+    ]
+  },
+  {
+    name: "sH - Standard deviation of hairiness",
+    key: "sH",
+    unit: "",
+    cols: [5, 25, 50, 75, 95],
+    data: [
+      { ne: 20.0, values: [1.1, 1.2, 1.4, 1.5, 1.8] },
+      { ne: 30.0, values: [0.9, 1.0, 1.1, 1.2, 1.4] },
+      { ne: 40.0, values: [0.7, 0.8, 0.9, 1.1, 1.2] },
+      { ne: 60.0, values: [0.6, 0.7, 0.8, 0.9, 1.0] },
+      { ne: 80.0, values: [0.5, 0.6, 0.7, 0.7, 0.8] },
+      { ne: 100.0, values: [0.5, 0.5, 0.6, 0.7, 0.7] },
+      { ne: 120.0, values: [0.4, 0.5, 0.5, 0.6, 0.7] }
+    ]
+  },
+  {
+    name: "S3u - Sum of Uster hairiness level > 3mm [/100m]",
+    key: "S3u",
+    unit: "/100m",
+    cols: [5, 50, 95],
+    data: [
+      { ne: 20.0, values: [3832, 5115, 6787] },
+      { ne: 30.0, values: [2910, 4011, 5501] },
+      { ne: 40.0, values: [2394, 3375, 4740] },
+      { ne: 60.0, values: [1818, 2646, 3842] },
+      { ne: 80.0, values: [1496, 2227, 3310] },
+      { ne: 100.0, values: [1286, 1948, 2949] },
+      { ne: 120.0, values: [1136, 1746, 2683] }
+    ]
+  },
+  {
+    name: "Dst Cnt - Dust count [/km]",
+    key: "Dst_Cnt",
+    unit: "/km",
+    cols: [5, 50, 95],
+    data: [
+      { ne: 20.0, values: [48, 141, 547] },
+      { ne: 30.0, values: [19, 54, 195] },
+      { ne: 40.0, values: [10, 27, 94] },
+      { ne: 60.0, values: [4, 10, 33] },
+      { ne: 80.0, values: [2, 5, 16] },
+      { ne: 100.0, values: [1, 3, 9] },
+      { ne: 120.0, values: [1, 2, 6] }
+    ]
+  }
 ];
+
+// Helper to scale combed values to represent combed cones (Winding/Clearer filters out 15%-30% defects!)
+function scaleCombedForCones(param: UsterParameter): UsterParameter {
+  const clonedData = param.data.map(d => {
+    let scalar = 1.0;
+    // Mass properties are slightly uniformer due to high-speed electronic sensors
+    if (param.key === "CVm") scalar = 0.98;
+    else if (param.key.startsWith("CVm_")) scalar = 0.985;
+    // Imperfections (Thin, Thick, Neps) are substantially lower as clearing cuts them out
+    else if (param.key.startsWith("Thin_")) scalar = 0.75;
+    else if (param.key.startsWith("Thick_")) scalar = 0.80;
+    else if (param.key.startsWith("Neps_")) scalar = 0.70;
+    // Hairiness Sum and Impurities are also slightly cleaned
+    else if (param.key === "S3u") scalar = 0.90;
+    else if (param.key === "Dst_Cnt") scalar = 0.85;
+
+    return {
+      ne: d.ne,
+      values: d.values.map(val => Math.round(val * scalar * 100) / 100)
+    };
+  });
+
+  return {
+    ...param,
+    data: clonedData
+  };
+}
+
+// 3. Combed Cones - Weaving and Hosiery (Cleaned by electronic winding clearers)
+export const combedConesStatistics: UsterParameter[] = combedRingConesStatistics.map(p => scaleCombedForCones(p));
+
+// Categorized standard count dropdown configurations
+export const CARDED_RING_CONES_COUNTS = [6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0, 24.0, 26.0, 28.0, 30.0, 36.0, 40.0];
+export const COMBED_RING_CONES_COUNTS = [20.0, 24.0, 26.0, 28.0, 30.0, 36.0, 40.0, 50.0, 60.0, 80.0, 100.0, 120.0];
+export const COMBED_CONES_COUNTS = [20.0, 24.0, 26.0, 28.0, 30.0, 36.0, 40.0, 50.0, 60.0, 80.0, 100.0, 120.0];
 
 /**
  * Perform a standard linear interpolation to find an estimate on any parameter.
@@ -413,7 +508,7 @@ export function interpolateValue(x: number, x0: number, x1: number, y0: number, 
 
 /**
  * Lookup the percentiles for a given count (Ne) in the dataset,
- * interpolating values between count steps.
+ * interpolating values between count steps if necessary.
  */
 export function getPercentilesForCount(
   param: UsterParameter,
@@ -491,7 +586,6 @@ export function gradeYarnParameter(
 
   // Determine direction: is higher value better or worse?
   // In almost all textile parameters, higher variation/defects is worse, so lower is better.
-  // Exception: D (density) or Shape, but we usually rank quality based on lower numbers of variation/defects.
   const isHigherWorse = true; // standard for yarn quality defects / variation
 
   // Look up index of the bounding percentiles
