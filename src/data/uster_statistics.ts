@@ -492,6 +492,75 @@ function scaleCombedForCones(param: UsterParameter): UsterParameter {
 // 3. Combed Cones - Weaving and Hosiery (Cleaned by electronic winding clearers)
 export const combedConesStatistics: UsterParameter[] = combedRingConesStatistics.map(p => scaleCombedForCones(p));
 
+/**
+ * Dynamically adjust Uster threshold values based on package stage (Bobbins vs Cones)
+ * and end-use application (Weaving vs Hosiery/Knitting).
+ * Raw master arrays in statistics represent Cones and Weaving.
+ */
+export function getDynamicParameter(
+  param: UsterParameter,
+  packageForm: "bobbins" | "cones",
+  endUse: "weaving" | "hosiery"
+): UsterParameter {
+  return {
+    ...param,
+    data: param.data.map((d) => {
+      let mCvm = 1.0;
+      let mImperfections = 1.0;
+      let mHairiness = 1.0;
+      let mImpurities = 1.0;
+
+      // 1. Bobbins vs Cones
+      // Bobbins have more imperfections/trash but less hairiness (no drum friction yet)
+      if (packageForm === "bobbins") {
+        mCvm *= 1.025;
+        mImperfections *= 1.35;
+        mHairiness *= 0.85;
+        mImpurities *= 1.25;
+      }
+
+      // 2. Weaving vs Hosiery (Knitting)
+      // Hosiery yarns are soft-twisted: higher hairiness, slightly more mass variation
+      if (endUse === "hosiery") {
+        mCvm *= 1.035;
+        mImperfections *= 1.15;
+        mHairiness *= 1.20;
+      }
+
+      const scaledValues = d.values.map((val) => {
+        let f = 1.0;
+        if (param.key === "CVm" || param.key.startsWith("CVm_")) {
+          f = mCvm;
+        } else if (
+          param.key.startsWith("Thin_") ||
+          param.key.startsWith("Thick_") ||
+          param.key.startsWith("Neps_") ||
+          param.key === "CVb_CVm"
+        ) {
+          f = mImperfections;
+        } else if (param.key === "H" || param.key === "sH" || param.key === "S3u") {
+          f = mHairiness;
+        } else if (param.key === "Dst_Cnt" || param.key === "Tr_Cnt") {
+          f = mImpurities;
+        }
+
+        // Keep values formatted neatly based on magnitude
+        const computed = val * f;
+        return computed < 3.0
+          ? Math.round(computed * 100) / 100
+          : computed < 20.0
+          ? Math.round(computed * 10) / 10
+          : Math.round(computed);
+      });
+
+      return {
+        ne: d.ne,
+        values: scaledValues
+      };
+    })
+  };
+}
+
 // Categorized standard count dropdown configurations
 export const CARDED_RING_CONES_COUNTS = [6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0, 24.0, 26.0, 28.0, 30.0, 36.0, 40.0];
 export const COMBED_RING_CONES_COUNTS = [20.0, 24.0, 26.0, 28.0, 30.0, 36.0, 40.0, 50.0, 60.0, 80.0, 100.0, 120.0];

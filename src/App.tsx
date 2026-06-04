@@ -23,7 +23,8 @@ import {
   UsterParameter,
   CARDED_RING_CONES_COUNTS,
   COMBED_RING_CONES_COUNTS,
-  COMBED_CONES_COUNTS
+  COMBED_CONES_COUNTS,
+  getDynamicParameter
 } from "./data/uster_statistics";
 
 // Define strict details of the parameters
@@ -190,6 +191,8 @@ export default function App() {
   const [ne, setNe] = useState<number>(30);
   const [isCustomNe, setIsCustomNe] = useState<boolean>(false);
   const [customNeVal, setCustomNeVal] = useState<string>("30");
+  const [packageForm, setPackageForm] = useState<"bobbins" | "cones">("cones");
+  const [endUse, setEndUse] = useState<"weaving" | "hosiery">("weaving");
 
   const [measurements, setMeasurements] = useState<Record<string, string>>({
     CVm: "14.5",
@@ -208,6 +211,8 @@ export default function App() {
   const [studyNe, setStudyNe] = useState<number>(30);
   const [isCustomStudyNe, setIsCustomStudyNe] = useState<boolean>(false);
   const [customStudyNeVal, setCustomStudyNeVal] = useState<string>("30");
+  const [studyPackageForm, setStudyPackageForm] = useState<"bobbins" | "cones">("cones");
+  const [studyEndUse, setStudyEndUse] = useState<"weaving" | "hosiery">("weaving");
   const [infoModalKey, setInfoModalKey] = useState<string | null>(null);
 
   // Derive simple yarnType "carded" | "combed" for backward layout details
@@ -215,17 +220,20 @@ export default function App() {
 
   // Fetch reference parameter statistics based on selected category
   const activeStats = useMemo(() => {
+    let baseStats = cardedRingConesStatistics;
     switch (dbCategory) {
       case "carded_ring_cones":
-        return cardedRingConesStatistics;
+        baseStats = cardedRingConesStatistics;
+        break;
       case "combed_ring_cones":
-        return combedRingConesStatistics;
+        baseStats = combedRingConesStatistics;
+        break;
       case "combed_cones":
-        return combedConesStatistics;
-      default:
-        return cardedRingConesStatistics;
+        baseStats = combedConesStatistics;
+        break;
     }
-  }, [dbCategory]);
+    return baseStats.map(p => getDynamicParameter(p, packageForm, endUse));
+  }, [dbCategory, packageForm, endUse]);
 
   // Derived available counts list for selectors
   const availableCounts = useMemo(() => {
@@ -257,17 +265,20 @@ export default function App() {
 
   // Fetch study statistics based on selection
   const studyStats = useMemo(() => {
+    let baseStats = cardedRingConesStatistics;
     switch (studyDbCategory) {
       case "carded_ring_cones":
-        return cardedRingConesStatistics;
+        baseStats = cardedRingConesStatistics;
+        break;
       case "combed_ring_cones":
-        return combedRingConesStatistics;
+        baseStats = combedRingConesStatistics;
+        break;
       case "combed_cones":
-        return combedConesStatistics;
-      default:
-        return cardedRingConesStatistics;
+        baseStats = combedConesStatistics;
+        break;
     }
-  }, [studyDbCategory]);
+    return baseStats.map(p => getDynamicParameter(p, studyPackageForm, studyEndUse));
+  }, [studyDbCategory, studyPackageForm, studyEndUse]);
 
   // Auto-sync valid count values when the user updates the database category
   React.useEffect(() => {
@@ -385,6 +396,8 @@ export default function App() {
     setNe(preset.ne);
     setIsCustomNe(false);
     setCustomNeVal(preset.ne.toString());
+    setPackageForm("cones");
+    setEndUse("weaving");
     const newMeas: Record<string, string> = {};
     Object.entries(preset.parameters).forEach(([k, v]) => {
       newMeas[k] = v.toString();
@@ -486,12 +499,45 @@ export default function App() {
                       <select
                         value={dbCategory}
                         onChange={(e) => setDbCategory(e.target.value as any)}
-                        className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-slate-55 bg-slate-50 hover:bg-slate-100/50 border border-slate-250 border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-semibold text-slate-800"
+                        className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-slate-50 hover:bg-slate-100/50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-semibold text-slate-800"
                       >
                         <option value="carded_ring_cones">Cotton (carded) - Ring Spun Yarn</option>
                         <option value="combed_ring_cones">Cotton (combed) - Ring Spun Yarn</option>
                         <option value="combed_cones">Cotton (combed) - Compact Spun Yarn</option>
                       </select>
+                    </div>
+
+                    {/* Custom selections for Application (Weaving/Hosiery) and Package Stage (Bobbins/Cones) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-indigo-50/35 p-3 rounded-xl border border-indigo-100/50">
+                      {/* Application / End-use Selection */}
+                      <div>
+                        <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">
+                          Application / End-use
+                        </label>
+                        <select
+                          value={endUse}
+                          onChange={(e) => setEndUse(e.target.value as any)}
+                          className="w-full px-3 py-2 text-xs bg-white hover:bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-indigo-500 transition-all font-semibold text-slate-800"
+                        >
+                          <option value="weaving">Weaving Yarn</option>
+                          <option value="hosiery">Hosiery (Knitting)</option>
+                        </select>
+                      </div>
+
+                      {/* Package Stage Selection */}
+                      <div>
+                        <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">
+                          Process Stage / Package
+                        </label>
+                        <select
+                          value={packageForm}
+                          onChange={(e) => setPackageForm(e.target.value as any)}
+                          className="w-full px-3 py-2 text-xs bg-white hover:bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-indigo-500 transition-all font-semibold text-slate-800"
+                        >
+                          <option value="cones">Cones (Wound)</option>
+                          <option value="bobbins">Bobbins (Cop/Ring)</option>
+                        </select>
+                      </div>
                     </div>
 
                     {/* Count Selector Input (Standard Select / Manual Custom Input) */}
@@ -583,7 +629,7 @@ export default function App() {
                     <div>
                       <span className="font-bold block text-indigo-950">Active Uster DB Lookup Rules:</span>
                       <p className="text-indigo-700 text-[10px] leading-relaxed mt-0.5">
-                        Currently analyzing against <strong>{dbCategory === "carded_ring_cones" ? "Cotton (carded) - Ring Spun" : dbCategory === "combed_ring_cones" ? "Cotton (combed) - Ring Spun" : "Cotton (combed) - Compact Spun"}</strong> statistics at standard count <strong>Ne {ne.toFixed(1)}</strong>. Only standard counts matching Uster laboratory rules are available in the dropdown selector.
+                        Currently analyzing against <strong>{dbCategory === "carded_ring_cones" ? "Cotton (carded) - Ring Spun" : dbCategory === "combed_ring_cones" ? "Cotton (combed) - Ring Spun" : "Cotton (combed) - Compact Spun"}</strong> standard database, calibrated for <strong>{endUse === "weaving" ? "Weaving Yarn" : "Hosiery (Knitting) Yarn"}</strong> on <strong>{packageForm === "cones" ? "Cones (Wound Package)" : "Bobbins (Ring Stage)"}</strong> at yarn count <strong>Ne {ne.toFixed(1)}</strong>.
                       </p>
                     </div>
                   </div>
@@ -971,17 +1017,41 @@ export default function App() {
                 </div>
 
                 {/* Browser Study Form */}
-                <div className="flex flex-wrap items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200 self-start sm:self-auto shadow-xs">
+                <div className="flex flex-wrap items-center gap-4 bg-slate-50 p-3 rounded-xl border border-slate-200 self-start sm:self-auto shadow-xs">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-600">Standard DB:</span>
+                    <span className="text-xs font-bold text-slate-600">Category:</span>
                     <select
                       value={studyDbCategory}
                       onChange={(e) => setStudyDbCategory(e.target.value as any)}
                       className="px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-hidden font-medium text-slate-800"
                     >
-                      <option value="carded_ring_cones">Cotton (carded) - Ring Spun Yarn</option>
-                      <option value="combed_ring_cones">Cotton (combed) - Ring Spun Yarn</option>
-                      <option value="combed_cones">Cotton (combed) - Compact Spun Yarn</option>
+                      <option value="carded_ring_cones">Cotton (carded) - Ring</option>
+                      <option value="combed_ring_cones">Cotton (combed) - Ring</option>
+                      <option value="combed_cones">Cotton (combed) - Compact</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-600">End-Use:</span>
+                    <select
+                      value={studyEndUse}
+                      onChange={(e) => setStudyEndUse(e.target.value as any)}
+                      className="px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-hidden font-medium text-slate-800"
+                    >
+                      <option value="weaving">Weaving</option>
+                      <option value="hosiery">Hosiery/Knitting</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-600">Package:</span>
+                    <select
+                      value={studyPackageForm}
+                      onChange={(e) => setStudyPackageForm(e.target.value as any)}
+                      className="px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-hidden font-medium text-slate-800"
+                    >
+                      <option value="cones">Cones (Wound)</option>
+                      <option value="bobbins">Bobbins (Cop)</option>
                     </select>
                   </div>
 
@@ -1123,11 +1193,11 @@ export default function App() {
               );
               if (!pRef) return null;
               const info = PARAM_INFO[pRef.key];
-              const studyYarnLabel = studyDbCategory === "carded_ring_cones" 
+              const studyYarnLabel = (studyDbCategory === "carded_ring_cones" 
                 ? "Cotton (carded) - Ring Spun" 
                 : studyDbCategory === "combed_ring_cones" 
                 ? "Cotton (combed) - Ring Spun" 
-                : "Cotton (combed) - Compact Spun";
+                : "Cotton (combed) - Compact Spun") + " (" + (studyEndUse === "weaving" ? "Weaving" : "Hosiery") + ", " + (studyPackageForm === "cones" ? "Cones" : "Bobbins") + ")";
 
               return (
                 <div className="space-y-3">
